@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Beslenme & Antrenman Takibi</title>
+<title>Dide Hoca Danışmanlık</title>
 <meta name="theme-color" content="#f3b3c8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Takibim">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f3b3c8'/%3E%3Ccircle cx='32' cy='32' r='18' fill='none' stroke='%23fff' stroke-width='7' stroke-dasharray='80 200' transform='rotate(-90 32 32)'/%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-title" content="Dide Hoca">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon.png">
 <style>
 :root{
   --bg:#fbf6f8; --card:#ffffff; --ink:#2f2a33; --mut:#8a8190; --line:#efe6ec;
@@ -18,9 +21,11 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#f7b7c8,#c9b8ff);color:#fff;padding:14px 16px 12px}
-header h1{margin:0;font-size:18px;font-weight:700}
-header small{opacity:.9}
+header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#f7b7c8,#c9b8ff);color:#4a2340;padding:10px 16px 9px;text-align:center;box-shadow:0 2px 12px rgba(120,60,100,.12)}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px}
+.brand img{width:42px;height:42px;background:#fff;border-radius:50%;padding:5px;box-shadow:0 2px 8px rgba(90,40,70,.15);flex:none}
+.brand span{font-size:19px;font-weight:800;letter-spacing:.2px}
+header small{display:block;margin-top:3px;font-size:13px;font-weight:600;color:#6b4462}
 main{max-width:760px;margin:0 auto;padding:14px 14px 96px}
 nav{position:fixed;bottom:0;left:0;right:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
 nav button{flex:1;max-width:150px;border:0;background:none;color:var(--mut);font-size:12px;padding:6px 2px;border-radius:12px;cursor:pointer}
@@ -91,13 +96,17 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 </style>
 </head>
 <body>
-<header><h1 id="hd">Beslenme & Antrenman</h1><small id="sub"></small></header>
+<header><div class="brand"><img src="logo.png" alt=""><span>Dide Hoca Danışmanlık</span></div><small id="sub"></small></header>
 <main id="app"><div class="empty">Yükleniyor…</div></main>
 <nav id="nav"></nav>
 <div id="ld" class="load" style="display:none"></div>
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxGMEt14iQj3emunOssy-8UbOUJ8nr3xkw9y19AwwFhfbJvh7Y9fpJV0zKbddVjAVR7nA/exec';
-const TOKEN = (new URLSearchParams(location.search).get('t') || '').trim();
+const TOKEN = (function(){
+  let t = (new URLSearchParams(location.search).get('t') || '').trim();
+  try { if(t) localStorage.setItem('dh_t', t); else t = localStorage.getItem('dh_t') || ''; } catch(e) {}
+  return t;
+})();
 let ROLE = 'none';
 const OGUNLER = ['Kahvaltı','Ara öğün 1','Öğle','Ara öğün 2','Akşam','Gece'];
 const OG_RENK = {'Kahvaltı':'#fff4d6','Ara öğün 1':'#e8f7ee','Öğle':'#e6f2ff','Ara öğün 2':'#f3ecff','Akşam':'#ffe8ee','Gece':'#ece9f7','Su':'#e0f7f4'};
@@ -252,34 +261,80 @@ function go(tab){
 const ST_VIEWS = {
   bugun: () => render_bugun(),
   ekle: () => render_ekle(),
-  olcum: () => { if(S.meas) render_olcum(); call('meas').then(m => { S.meas = m; if(S.tab === 'olcum') render_olcum(); }); },
-  antrenman: () => { if(S.prog) render_ant(); loadProg(S.prog ? S.prog.week : todayS()); }
+  olcum: () => { if(S.meas) render_olcum(); else wait_(); call('meas', {}, !!S.meas).then(m => { S.meas = m; if(S.tab === 'olcum' && idle()) render_olcum(); }).catch(() => {}); },
+  antrenman: () => { if(S.prog) render_ant(); else wait_(); loadProg(S.prog ? S.prog.week : todayS(), !!S.prog); }
 };
-function stInit(){
-  setNav([['bugun','☀︎','Bugün'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']]);
-  call('init', {date: todayS()}).then(r => {
-    S.day = r.day; S.favs = r.favs; S.date = r.day.date;
-    $('hd').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋'; $('sub').textContent = 'Beslenme & antrenman takibin';
-    go('bugun');
-  });
+function wait_(){ $('app').innerHTML = '<div class="empty">Yükleniyor…</div>'; }
+/* --- hızlı kayıt: ekranda hemen göster, arka planda kaydet --- */
+let pend = 0, bad = false;
+function idle(){ const a = document.activeElement; return !(a && a.closest && a.closest('#app') && /INPUT|TEXTAREA|SELECT/.test(a.tagName)); }
+function rerender(){
+  if(!idle()) return;
+  if(ROLE === 'coach'){ if(S.tab === 'ozet') render_ozet(); return; }
+  if(S.tab === 'bugun') render_bugun();
+  else if(S.tab === 'ekle' && (S.mode || 'fav') !== 'man') render_ekle();
 }
-function loadDay(d){ S.date = d; call('day', {date: d}).then(r => { S.day = r; if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle') render_ekle(); }); }
+function recalc(d){
+  const t = {kcal: 0, p: 0, k: 0, y: 0, su: 0};
+  d.entries.forEach(x => { for(const k in t) t[k] += n(x[k]); });
+  for(const k in t) t[k] = Math.round(t[k] * 10) / 10;
+  d.totals = t;
+  const w = d.week.find(x => x.tarih === d.date); if(w) Object.assign(w, t);
+}
+function tmpId(){ return 'tmp' + Math.random().toString(36).slice(2, 9); }
+function addLocal(e){ S.day.entries.push(Object.assign({id: tmpId(), kcal: 0, p: 0, k: 0, y: 0, su: 0, miktar: ''}, e)); recalc(S.day); }
+function saveCache(){ if(ROLE === 'student' && S.day && S.day.date === todayS()) cacheSet({role: 'student', name: S.name, day: S.day, favs: S.favs}); }
+function sync(action, params, apply){
+  pend++;
+  return call(action, params, true)
+    .then(r => { pend--; if(!pend && !bad){ apply(r); saveCache(); rerender(); } })
+    .catch(e => { pend--; bad = true; toast(((e && e.message && e.message !== 'Failed to fetch') ? e.message : 'Bağlantı hatası') + ' · Son işlem kaydedilemedi, tekrar dene.', true); })
+    .finally(() => {
+      if(!pend && bad){
+        bad = false;
+        call('day', {date: S.date}, true).then(d => { S.day = d; saveCache(); rerender(); }).catch(() => {});
+        call('favs', {}, true).then(f => { S.favs = f; }).catch(() => {});
+        if(S.prog) loadProg(S.prog.week, true);
+      }
+    });
+}
+const applyDay = r => { if(r.day.date === S.date) S.day = r.day; S.favs = r.favs; };
+function stBoot(r){
+  S.name = r.name; S.day = r.day; S.favs = r.favs; S.date = r.day.date;
+  $('sub').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋';
+}
+function stInit(r){
+  setNav([['bugun','☀︎','Bugün'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']]);
+  stBoot(r); go('bugun');
+}
+function loadDay(d){
+  S.date = d;
+  if(S.day && S.day.date !== d){ S.day = Object.assign({}, S.day, {date: d, entries: [], totals: {kcal: 0, p: 0, k: 0, y: 0, su: 0}, loading: true}); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle') render_ekle(); }
+  call('day', {date: d}).then(r => { if(r.date !== S.date) return; S.day = r; saveCache(); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle' && idle()) render_ekle(); }).catch(() => {});
+}
 function render_bugun(){
   const d = S.day;
   $('app').innerHTML = dateNav(d.date, 'loadDay') + noTargets(d.targets) +
     '<div class="card">' + rings(d.totals, d.targets) + '</div>' +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
-    '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + entriesView(d, false) + '</div>' +
+    '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
     '<div class="card"><h3>Son 7 gün · kalori</h3>' + weekBars(d.week, d.targets.kcal) + '</div>' +
     '<div class="card"><h3>Son 7 gün · protein (g)</h3>' + weekBars(d.week, d.targets.p, 'p', 'var(--p)') + '</div>';
 }
 function addSu(ml){
-  call('addEntry', {date: S.date, ogun: 'Su', besin: 'Su', miktar: ml + ' ml', su: ml}).then(r => { S.day = r.day; S.favs = r.favs; toast('💧 ' + ml + ' ml eklendi'); if(S.tab === 'bugun') render_bugun(); });
+  if(S.day.loading) return;
+  addLocal({ogun: 'Su', besin: 'Su', miktar: ml + ' ml', su: ml});
+  toast('💧 ' + ml + ' ml eklendi');
+  if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle') render_ekle();
+  sync('addEntry', {date: S.date, ogun: 'Su', besin: 'Su', miktar: ml + ' ml', su: ml}, applyDay);
 }
 function delEntry(id){
+  if(String(id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra silebilirsin'); return; }
   if(S._del !== id){ S._del = id; toast('Silmek için tekrar ✕ dokun'); setTimeout(() => { if(S._del === id) S._del = null; }, 3000); return; }
   S._del = null;
-  call('deleteEntry', {id, date: S.date}).then(r => { S.day = r; toast('Silindi'); render_bugun(); });
+  S.day.entries = S.day.entries.filter(e => e.id !== id); recalc(S.day);
+  toast('Silindi'); render_bugun();
+  sync('deleteEntry', {id, date: S.date}, r => { if(r.date === S.date) S.day = r; });
 }
 function render_ekle(){
   S.ogun = S.ogun || defOgun();
@@ -311,20 +366,30 @@ function render_ekle(){
         '<div class="mut" style="margin-top:10px">Bugün: <b>' + fx(S.day.totals.su) + '</b>' + (S.day.targets.su ? ' / ' + fx(S.day.targets.su) : '') + ' ml</div></div>');
 }
 function addFav(){
-  const f = S.favs.find(x => x.id === S.sel), m = n(S.mult || 1) || 1; if(!f) return;
-  call('addEntry', {date: S.date, ogun: S.ogun, besin: f.besin, miktar: (m === 1 ? '' : String(m).replace('.', ',') + ' × ') + f.porsiyon,
-    kcal: f.kcal * m, p: f.p * m, k: f.k * m, y: f.y * m}).then(r => { S.day = r.day; S.favs = r.favs; S.sel = null; toast('✓ ' + f.besin + ' eklendi'); render_ekle(); });
+  const f = S.favs.find(x => x.id === S.sel), m = n(S.mult || 1) || 1; if(!f || S.day.loading) return;
+  const e = {ogun: S.ogun, besin: f.besin, miktar: (m === 1 ? '' : String(m).replace('.', ',') + ' × ') + f.porsiyon,
+    kcal: Math.round(f.kcal * m * 10) / 10, p: Math.round(f.p * m * 10) / 10, k: Math.round(f.k * m * 10) / 10, y: Math.round(f.y * m * 10) / 10};
+  addLocal(e); S.sel = null; toast('✓ ' + f.besin + ' eklendi'); render_ekle();
+  sync('addEntry', Object.assign({date: S.date}, e), applyDay);
 }
 function addMan(){
+  if(S.day.loading) return;
   const b = val('m_b').trim(); if(!b){ toast('Besin adını yaz', true); return; }
   const p = {date: S.date, ogun: S.ogun, besin: b, miktar: val('m_m'), kcal: n(val('m_kcal')), p: n(val('m_p')), k: n(val('m_k')), y: n(val('m_y')), saveFav: $('m_fav').checked};
   if(!p.kcal && !p.p && !p.k && !p.y){ toast('En az kalori değerini gir', true); return; }
-  call('addEntry', p).then(r => { S.day = r.day; S.favs = r.favs; toast('✓ ' + b + ' eklendi' + (p.saveFav ? ' (sık yediklerine de)' : '')); render_ekle(); });
+  addLocal({ogun: p.ogun, besin: b, miktar: p.miktar, kcal: p.kcal, p: p.p, k: p.k, y: p.y});
+  if(p.saveFav){ S.favs.push({id: tmpId(), own: true, besin: b, porsiyon: p.miktar || '1 porsiyon', kcal: p.kcal, p: p.p, k: p.k, y: p.y}); S.favs.sort((a, c) => a.besin.localeCompare(c.besin, 'tr')); }
+  toast('✓ ' + b + ' eklendi' + (p.saveFav ? ' (sık yediklerine de)' : ''));
+  if(document.activeElement) document.activeElement.blur();
+  render_ekle();
+  sync('addEntry', p, applyDay);
 }
 function delFav(id){
+  if(String(id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra silebilirsin'); return; }
   if(S._delf !== id){ S._delf = id; toast('Silmek için tekrar ✕ dokun'); setTimeout(() => { if(S._delf === id) S._delf = null; }, 3000); return; }
   S._delf = null;
-  call('deleteFav', {id}).then(r => { S.favs = r; render_ekle(); });
+  S.favs = S.favs.filter(f => f.id !== id); render_ekle();
+  sync('deleteFav', {id}, r => { S.favs = r; });
 }
 function render_olcum(){
   const m = S.meas;
@@ -335,18 +400,39 @@ function render_olcum(){
     '<div class="mut" style="margin-top:8px">İpucu: haftada 1 kez, aynı gün, sabah aç karnına tartıl.</div></div>' +
     '<div class="card"><h3>Geçmiş</h3>' + measTable(m, true) + '</div>';
 }
+function measLocal(m){
+  m.list.sort((a, b) => a.tarih < b.tarih ? -1 : a.tarih > b.tarih ? 1 : 0);
+  const kg = m.list.filter(x => x.kilo != null), bel = m.list.filter(x => x.bel != null);
+  m.start = kg.length ? kg[0].kilo : null; m.cur = kg.length ? kg[kg.length - 1].kilo : null;
+  m.change = kg.length > 1 ? Math.round((m.cur - m.start) * 10) / 10 : null;
+  m.belChange = bel.length > 1 ? Math.round((bel[bel.length - 1].bel - bel[0].bel) * 10) / 10 : null;
+  m.lastDate = m.list.length ? m.list[m.list.length - 1].tarih : null;
+  m.daysSince = m.lastDate ? Math.round((pd(todayS()) - pd(m.lastDate)) / 86400000) : null;
+}
 function addMeas(){
-  const p = {tarih: val('o_t')};
-  ['kilo','bel','kalca','gogus','kol','uyluk','yag'].forEach(k => { const v = val('o_' + k).trim(); p[k] = v === '' ? '' : n(v); });
+  const p = {tarih: val('o_t') || todayS()};
+  let any = false;
+  ['kilo','bel','kalca','gogus','kol','uyluk','yag'].forEach(k => { const v = val('o_' + k).trim(); p[k] = v === '' ? '' : n(v); if(v !== '') any = true; });
+  if(!any){ toast('En az bir ölçüm gir', true); return; }
   p.not = val('o_not');
-  call('addMeas', p).then(r => { S.meas = r; toast('✓ Ölçüm kaydedildi'); render_olcum(); });
+  const loc = {id: tmpId(), tarih: p.tarih, not: p.not};
+  ['kilo','bel','kalca','gogus','kol','uyluk','yag'].forEach(k => loc[k] = p[k] === '' ? null : p[k]);
+  S.meas.list.push(loc); measLocal(S.meas);
+  if(document.activeElement) document.activeElement.blur();
+  toast('✓ Ölçüm kaydedildi'); render_olcum();
+  pend++;
+  call('addMeas', p, true).then(r => { pend--; S.meas = r; if(S.tab === 'olcum' && idle()) render_olcum(); })
+    .catch(e => { pend--; toast('Ölçüm kaydedilemedi, tekrar dene.', true); call('meas', {}, true).then(r => { S.meas = r; if(S.tab === 'olcum') render_olcum(); }).catch(() => {}); });
 }
 function delMeas(id){
+  if(String(id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra silebilirsin'); return; }
   if(S._delm !== id){ S._delm = id; toast('Silmek için tekrar ✕ dokun'); setTimeout(() => { if(S._delm === id) S._delm = null; }, 3000); return; }
   S._delm = null;
-  call('deleteMeas', {id}).then(r => { S.meas = r; render_olcum(); });
+  S.meas.list = S.meas.list.filter(x => x.id !== id); measLocal(S.meas); render_olcum();
+  call('deleteMeas', {id}, true).then(r => { S.meas = r; if(S.tab === 'olcum' && idle()) render_olcum(); })
+    .catch(() => { toast('Silinemedi, tekrar dene.', true); call('meas', {}, true).then(r => { S.meas = r; if(S.tab === 'olcum') render_olcum(); }).catch(() => {}); });
 }
-function loadProg(w){ call('program', {week: w}).then(r => { S.prog = r; if(S.tab === 'antrenman') render_ant(); }); }
+function loadProg(w, quiet){ call('program', {week: w}, quiet).then(r => { S.prog = r; if(S.tab === 'antrenman' && idle()) render_ant(); }).catch(() => {}); }
 function weekNav(p, fn){
   return '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="' + fn + '(\'' + addD(p.week, -7) + '\')">‹</button>' +
     '<div class="sp" style="text-align:center;font-weight:700">' + (p.week === p.thisWeek ? 'Bu hafta · ' : '') + fmtD(p.week) + ' – ' + fmtD(p.weekEnd) + '</div>' +
@@ -373,26 +459,43 @@ function render_ant(){
       '<div class="f" style="margin-top:8px"><input id="yn_' + r.id + '" value="' + esc(r.ogrenci_notu) + '" placeholder="Notun (ör. son sette zorlandım)"></div>' +
       '<button class="btn sec sm blk" onclick="saveRes(\'' + r.id + '\')">Kaydet</button></div>').join('') + '</div>';
   }
-  if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="call(\'saveStudentNote\',{week:S.prog.week,text:val(\'snote\')}).then(r=>{S.prog=r;toast(\'✓ Not kaydedildi\')})">Notu kaydet</button></div>';
+  if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="saveSNote()">Notu kaydet</button></div>';
   $('app').innerHTML = h;
 }
+function progLocal(p){
+  p.done = p.rows.filter(r => r.yapilan_set !== '').length;
+  const zs = p.rows.map(r => n(r.zorluk)).filter(z => z > 0);
+  p.avgZorluk = zs.length ? Math.round(zs.reduce((a, b) => a + b, 0) / zs.length * 10) / 10 : null;
+}
 function saveRes(id){
-  const zv = $('yz_' + id).dataset.v || (S.prog.rows.find(r => r.id === id) || {}).zorluk || '';
-  call('saveResult', {id, week: S.prog.week, yapilan_set: val('ys_' + id), yapilan_tekrar: val('yt_' + id), agirlik: val('ya_' + id), zorluk: zv, ogrenci_notu: val('yn_' + id)})
-    .then(r => { S.prog = r; toast('✓ Kaydedildi'); render_ant(); });
+  const row = S.prog.rows.find(r => r.id === id); if(!row) return;
+  const zv = $('yz_' + id).dataset.v || row.zorluk || '';
+  const p = {id, week: S.prog.week, yapilan_set: val('ys_' + id).trim(), yapilan_tekrar: val('yt_' + id).trim(), agirlik: val('ya_' + id).trim(), zorluk: String(zv), ogrenci_notu: val('yn_' + id).trim()};
+  Object.assign(row, {yapilan_set: p.yapilan_set, yapilan_tekrar: p.yapilan_tekrar, agirlik: p.agirlik, zorluk: p.zorluk, ogrenci_notu: p.ogrenci_notu});
+  progLocal(S.prog);
+  if(document.activeElement) document.activeElement.blur();
+  toast('✓ Kaydedildi'); render_ant();
+  const wk = S.prog.week;
+  sync('saveResult', p, r => { if(S.prog && S.prog.week === wk){ S.prog = r; if(S.tab === 'antrenman' && idle()) render_ant(); } });
+}
+function saveSNote(){
+  const t = val('snote'), wk = S.prog.week; S.prog.ogrenciNotu = t;
+  if(document.activeElement) document.activeElement.blur();
+  toast('✓ Not kaydedildi');
+  sync('saveStudentNote', {week: wk, text: t}, r => { if(S.prog && S.prog.week === wk) S.prog.ogrenciNotu = r.ogrenciNotu; });
 }
 
 /* =================== ANTRENÖR =================== */
 const C_VIEWS = {
-  ozet: () => { if(S.ov) render_ozet(); call('overview').then(r => { S.ov = r; if(S.tab === 'ozet') render_ozet(); }); },
+  ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
   program: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.cprog) render_cprog(); if(S.sid) loadCProg(S.cprog ? S.cprog.week : todayS()); },
   ayarlar: () => { call('settings').then(r => { S.set = r; render_ayar(); }); }
 };
-function cInit(){
-  $('hd').textContent = 'Antrenör Paneli'; $('sub').textContent = 'Tüm öğrencilerin tek ekranda';
+function cInit(r){
+  $('sub').textContent = 'Antrenör Paneli';
   setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['ayarlar','⚙︎','Ayarlar']]);
-  call('init').then(r => { S.ov = r; go('ozet'); });
+  S.ov = r; S.ovTs = Date.now(); go('ozet');
 }
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
@@ -534,15 +637,36 @@ function locked(msg){
   $('nav').style.display = 'none';
   $('app').innerHTML = '<div class="card empty" style="margin-top:40px"><div style="font-size:40px">🔒</div><b>' + esc(msg) + '</b><br>Linkini antrenöründen iste.</div>';
 }
+const CK = 'dh_c_' + TOKEN;
+function cacheGet(){ try { return JSON.parse(localStorage.getItem(CK) || 'null'); } catch(e) { return null; } }
+function cacheSet(r){ try { localStorage.setItem(CK, JSON.stringify(r)); } catch(e) {} }
+let booted = false;
+function boot(r){
+  if(!booted){ booted = true; ROLE = r.role; if(ROLE === 'coach') cInit(r); else stInit(r); return; }
+  if(r.role !== ROLE) return;
+  if(ROLE === 'coach'){ S.ov = r; S.ovTs = Date.now(); rerender(); return; }
+  S.favs = pend ? S.favs : r.favs;
+  if(pend || r.day.date !== S.date) return;
+  stBoot(r); rerender();
+}
+function prefetch(){
+  call('meas', {}, true).then(m => { if(!S.meas) S.meas = m; }).catch(() => {});
+  call('program', {week: todayS()}, true).then(p => { if(!S.prog) S.prog = p; }).catch(() => {});
+}
 window.addEventListener('unhandledrejection', ev => ev.preventDefault());
 if(!TOKEN) locked('Bu sayfaya erişim için kişisel linkin gerekiyor.');
-else call('role', {}, true).then(r => {
-  ROLE = r.role;
-  if(ROLE === 'coach') cInit(); else stInit();
-}).catch(e => {
-  if(e && e.message && /Geçersiz/.test(e.message)) locked('Bu link geçersiz ya da artık aktif değil.');
-  else { $('app').innerHTML = '<div class="card empty" style="margin-top:40px">Bağlanılamadı. İnternetini kontrol et.<br><br><button class="btn" onclick="location.reload()">Tekrar dene</button></div>'; }
-});
+else {
+  const c = cacheGet();
+  if(c && c.role && (c.role === 'coach' ? c.students : (c.day && c.day.date === todayS()))) boot(c);
+  call('init', {date: todayS()}, true).then(r => {
+    cacheSet(r); boot(r);
+    if(ROLE === 'student') prefetch();
+  }).catch(e => {
+    if(e && e.message && /Geçersiz/.test(e.message)){ try { localStorage.removeItem(CK); } catch(_) {} locked('Bu link geçersiz ya da artık aktif değil.'); }
+    else if(!booted) $('app').innerHTML = '<div class="card empty" style="margin-top:40px">Bağlanılamadı. İnternetini kontrol et.<br><br><button class="btn" onclick="location.reload()">Tekrar dene</button></div>';
+    else toast('Bağlantı yok, son kayıtlı bilgiler gösteriliyor.', true);
+  });
+}
 </script>
 </body>
 </html>
