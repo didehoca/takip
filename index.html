@@ -81,8 +81,8 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .coach{background:#eef6ff;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .stu{background:#fff4ec;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .day h4{margin:12px 0 6px;font-size:14px;color:#9a5a75}
-.z{display:flex;gap:3px;flex-wrap:wrap}
-.z button{width:30px;height:30px;border-radius:9px;border:2px solid transparent;cursor:pointer;font-weight:700;color:#fff;font-size:12px}
+.z{display:flex;gap:3px}
+.z button{flex:1 1 0;min-width:0;height:32px;padding:0;border-radius:9px;border:2px solid transparent;cursor:pointer;font-weight:700;color:#fff;font-size:12px}
 .z button.on{border-color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:#2f2a33;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90%;text-align:center}
 .toast.err{background:#c94a4a}
@@ -440,7 +440,7 @@ function weekNav(p, fn){
     '<button class="btn gh sm" onclick="' + fn + '(\'' + addD(p.week, 7) + '\')">›</button></div>';
 }
 function zPick(id, cur){
-  return '<div class="z" id="' + id + '">' + [1,2,3,4,5,6,7,8,9,10].map(z => '<button type="button" class="' + (n(cur) === z ? 'on' : '') + '" style="background:' + zCol(z) + '" onclick="this.parentNode.dataset.v=' + z + ';[...this.parentNode.children].forEach(b=>b.classList.remove(\'on\'));this.classList.add(\'on\')">' + z + '</button>').join('') + '</div>';
+  return '<div class="z" id="' + id + '">' + [1,2,3,4,5,6,7,8,9,10].map(z => '<button type="button" class="' + (n(cur) === z ? 'on' : '') + '" style="background:' + zCol(z) + '" onclick="this.parentNode.dataset.v=' + z + ';[...this.parentNode.children].forEach(b=>b.classList.remove(\'on\'));this.classList.add(\'on\');dr(this.parentNode.id.slice(3),\'zorluk\',\'' + z + '\')">' + z + '</button>').join('') + '</div>';
 }
 function render_ant(){
   const p = S.prog;
@@ -449,15 +449,20 @@ function render_ant(){
     '<div class="bar" style="margin-top:8px"><i style="width:' + (p.total ? p.done / p.total * 100 : 0) + '%;background:var(--ok)"></i></div></div>';
   if(p.antrenorNotu) h += '<div class="card" style="background:#eef6ff"><h3>📋 Antrenörünün notu</h3>' + esc(p.antrenorNotu).replace(/\n/g, '<br>') + '</div>';
   if(!p.rows.length) h += '<div class="card empty">Bu hafta için program henüz yazılmamış.</div>';
+  if(p.rows.length) h += '<div class="mut" style="margin:0 4px 10px">Hareketleri yaptıkça doldur, gün bitince alttaki <b>antrenmanı kaydet</b> düğmesiyle hepsini tek seferde kaydet. Yazdıkların uygulamayı kapatsan da telefonda kalır.</div>';
   for(let g = 1; g <= 7; g++){
     const rs = p.rows.filter(r => r.gun === g); if(!rs.length) continue;
-    h += '<div class="card day"><h3>' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3>' + rs.map(r =>
-      '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (r.yapilan_set !== '' ? '<span class="pill ok">✓ yapıldı</span>' : '') + '</div>' +
+    const isD = r => S.draft[r.id] && !S.saving[r.id];
+    const saved = rs.every(r => r.yapilan_set !== ''), dirty = rs.some(isD);
+    const fv = (r, f) => { const d = S.draft[r.id]; return d && d[f] !== undefined ? d[f] : r[f]; };
+    h += '<div class="card day"><div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3>' +
+      (saved && !dirty ? '<span class="pill ok">✓ kaydedildi</span>' : '<button class="btn gh sm" onclick="fillPlan(' + g + ')">Programdaki gibi doldur</button>') + '</div>' + rs.map(r =>
+      '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (r.yapilan_set !== '' && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
       '<div class="coach">🎯 ' + esc(r.set || '–') + ' set × ' + esc(r.tekrar || '–') + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
-      '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + r.id + '" inputmode="numeric" value="' + esc(r.yapilan_set) + '"></div><div class="f"><label>Tekrar</label><input id="yt_' + r.id + '" value="' + esc(r.yapilan_tekrar) + '" placeholder="12,10,8"></div><div class="f"><label>Ağırlık</label><input id="ya_' + r.id + '" value="' + esc(r.agirlik) + '" placeholder="kg"></div></div>' +
-      '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + r.id, r.zorluk) +
-      '<div class="f" style="margin-top:8px"><input id="yn_' + r.id + '" value="' + esc(r.ogrenci_notu) + '" placeholder="Notun (ör. son sette zorlandım)"></div>' +
-      '<button class="btn sec sm blk" onclick="saveRes(\'' + r.id + '\')">Kaydet</button></div>').join('') + '</div>';
+      '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + r.id + '" inputmode="numeric" value="' + esc(fv(r, 'yapilan_set')) + '" oninput="dr(\'' + r.id + '\',\'yapilan_set\',this.value)"></div><div class="f"><label>Tekrar</label><input id="yt_' + r.id + '" value="' + esc(fv(r, 'yapilan_tekrar')) + '" placeholder="12,10,8" oninput="dr(\'' + r.id + '\',\'yapilan_tekrar\',this.value)"></div><div class="f"><label>Ağırlık</label><input id="ya_' + r.id + '" value="' + esc(fv(r, 'agirlik')) + '" placeholder="kg" oninput="dr(\'' + r.id + '\',\'agirlik\',this.value)"></div></div>' +
+      '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + r.id, fv(r, 'zorluk')) +
+      '<div class="f" style="margin-top:8px;margin-bottom:0"><input id="yn_' + r.id + '" value="' + esc(fv(r, 'ogrenci_notu')) + '" placeholder="Notun (ör. son sette zorlandım)" oninput="dr(\'' + r.id + '\',\'ogrenci_notu\',this.value)"></div></div>').join('') +
+      '<button id="sv_' + g + '" class="btn blk" style="margin-top:4px" onclick="saveDayRes(' + g + ')">' + saveLbl(g, dirty) + '</button></div>';
   }
   if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="saveSNote()">Notu kaydet</button></div>';
   $('app').innerHTML = h;
@@ -477,6 +482,53 @@ function saveRes(id){
   toast('✓ Kaydedildi'); render_ant();
   const wk = S.prog.week;
   sync('saveResult', p, r => { if(S.prog && S.prog.week === wk){ S.prog = r; if(S.tab === 'antrenman' && idle()) render_ant(); } });
+}
+/* --- antrenman taslakları: kaydedilene kadar telefonda tutulur --- */
+S.draft = (function(){ try { return JSON.parse(localStorage.getItem('dh_d_' + TOKEN) || '{}') || {}; } catch(e) { return {}; } })();
+function saveDrafts(){ try { localStorage.setItem('dh_d_' + TOKEN, JSON.stringify(S.draft)); } catch(e) {} }
+function saveLbl(g, dirty){ return (dirty ? '💾 ' : '✓ ') + GUN[g - 1] + ' antrenmanını kaydet' + (dirty ? ' · kaydedilmedi' : ''); }
+S.saving = {}; S.dv = {};
+function dr(id, f, v){
+  (S.draft[id] = S.draft[id] || {})[f] = v; S.dv[id] = (S.dv[id] || 0) + 1; delete S.saving[id]; saveDrafts();
+  const r = S.prog && S.prog.rows.find(x => x.id === id), b = r && $('sv_' + r.gun);
+  if(b) b.textContent = saveLbl(r.gun, true);
+}
+function fillPlan(g){
+  S.prog.rows.filter(r => r.gun === g).forEach(r => {
+    const d = S.draft[r.id] || {}, cur = d.yapilan_set !== undefined ? d.yapilan_set : r.yapilan_set;
+    if(String(cur).trim() === ''){ d.yapilan_set = String(r.set || ''); d.yapilan_tekrar = String(r.tekrar || ''); S.draft[r.id] = d; }
+  });
+  saveDrafts(); render_ant(); toast('Programdaki set ve tekrarlar dolduruldu, gerekirse düzelt');
+}
+function saveDayRes(g){
+  const wk = S.prog.week, rows = S.prog.rows.filter(r => r.gun === g);
+  const items = rows.map(r => {
+    const d = S.draft[r.id] || {};
+    return {id: r.id, yapilan_set: val('ys_' + r.id).trim(), yapilan_tekrar: val('yt_' + r.id).trim(), agirlik: val('ya_' + r.id).trim(),
+      zorluk: String(d.zorluk !== undefined ? d.zorluk : (r.zorluk || '')), ogrenci_notu: val('yn_' + r.id).trim()};
+  });
+  if(!items.some(i => i.yapilan_set || i.yapilan_tekrar || i.agirlik)){ toast('Önce yaptığın set, tekrar ya da ağırlıkları yaz', true); return; }
+  const ver = {};
+  items.forEach(i => {
+    const f = {yapilan_set: i.yapilan_set, yapilan_tekrar: i.yapilan_tekrar, agirlik: i.agirlik, zorluk: i.zorluk, ogrenci_notu: i.ogrenci_notu};
+    Object.assign(rows.find(r => r.id === i.id), f);
+    S.draft[i.id] = Object.assign({}, f); S.saving[i.id] = 1; ver[i.id] = S.dv[i.id] = (S.dv[i.id] || 0) + 1;
+  });
+  saveDrafts(); progLocal(S.prog);
+  if(document.activeElement) document.activeElement.blur();
+  toast('✓ ' + GUN[g - 1] + ' antrenmanı kaydediliyor 💪'); render_ant();
+  pend++;
+  call('saveResults', {week: wk, items}, true).then(r => {
+    pend--;
+    items.forEach(i => { if(S.dv[i.id] === ver[i.id]){ delete S.draft[i.id]; delete S.saving[i.id]; } });
+    saveDrafts();
+    if(S.prog && S.prog.week === wk){ S.prog = r; if(S.tab === 'antrenman' && idle()) render_ant(); }
+  }).catch(e => {
+    pend--;
+    items.forEach(i => { delete S.saving[i.id]; });
+    toast('Antrenman kaydedilemedi (bağlantı?). Yazdıkların telefonda duruyor, tekrar kaydet.', true);
+    if(S.tab === 'antrenman' && idle()) render_ant();
+  });
 }
 function saveSNote(){
   const t = val('snote'), wk = S.prog.week; S.prog.ogrenciNotu = t;
