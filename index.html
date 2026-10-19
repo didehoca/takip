@@ -78,6 +78,8 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .tw{overflow-x:auto}
 .ex{border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;background:#fff}
 .ex .t{font-weight:700}
+.ex.run{border-color:#c9ebe4;background:#f7fffd}
+.run .coach{background:#e2f6f1}
 .coach{background:#eef6ff;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .stu{background:#fff4ec;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .day h4{margin:12px 0 6px;font-size:14px;color:#9a5a75}
@@ -110,6 +112,7 @@ const TOKEN = (function(){
 let ROLE = 'none';
 const OGUNLER = ['Kahvaltı','Ara öğün 1','Öğle','Ara öğün 2','Akşam','Gece'];
 const OG_RENK = {'Kahvaltı':'#fff4d6','Ara öğün 1':'#e8f7ee','Öğle':'#e6f2ff','Ara öğün 2':'#f3ecff','Akşam':'#ffe8ee','Gece':'#ece9f7','Su':'#e0f7f4'};
+const KOSU = ['Easy run','Interval','Tempo run','Long run','Recovery run','Fartlek','Yarış / Test'];
 const GUN = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const AY = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 const GK = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
@@ -140,6 +143,16 @@ function addD(s, k){ const d = pd(s); d.setDate(d.getDate() + k); return ds(d); 
 function fmtD(s, wd){ if(!s) return '–'; const d = pd(s); return d.getDate() + ' ' + AY[d.getMonth()] + (wd ? ' ' + GK[(d.getDay()+6)%7] : ''); }
 function todayS(){ return ds(new Date()); }
 function defOgun(){ const h = new Date().getHours(); return h < 11 ? 'Kahvaltı' : h < 13 ? 'Ara öğün 1' : h < 16 ? 'Öğle' : h < 18 ? 'Ara öğün 2' : h < 22 ? 'Akşam' : 'Gece'; }
+function isDone(r){ return String(r.yapilan_set || '') !== '' || String(r.yapilan_km || '') !== '' || String(r.yapilan_sure || '') !== ''; }
+function normPace(s){ s = String(s || '').trim().replace(/[.,]/g, ':'); if(/^\d+$/.test(s)) s += ':00'; return s; }
+function secs(s){ s = String(s || '').trim().replace(/[.,]/g, ':'); if(!s) return 0; const p = s.split(':').map(Number); if(p.some(x => isNaN(x))) return 0; return p.length === 1 ? p[0] * 60 : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 3600 + p[1] * 60 + p[2]; }
+function mmss(t){ t = Math.round(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+function runPlan(r){ const a = []; if(r.hedef_km) a.push(fx(n(r.hedef_km), 2) + ' km'); if(r.hedef_pace) a.push('@ ' + esc(r.hedef_pace) + ' /km'); return a.join(' ') || 'hedef yazılmadı'; }
+function runSum(p){
+  const rs = p.rows.filter(r => r.tur === 'kosu'); if(!rs.length) return '';
+  const d = rs.reduce((a, r) => a + n(r.yapilan_km), 0), t = rs.reduce((a, r) => a + n(r.hedef_km), 0);
+  return '<div class="mut" style="margin-top:8px">🏃 Bu hafta koşu: <b>' + fx(d, 1) + ' km</b>' + (t ? ' / hedef ' + fx(t, 1) + ' km' : '') + '</div>';
+}
 function zCol(z){ z = n(z); if(!z) return '#d8d0d6'; const h = 120 - (z - 1) * (120 / 9); return 'hsl(' + h + ',62%,52%)'; }
 function pctCls(p){ return p == null ? '' : p > 1.15 ? 'bad' : p >= 0.85 ? 'ok' : 'warn'; }
 
@@ -445,18 +458,18 @@ function zPick(id, cur){
 function render_ant(){
   const p = S.prog;
   let h = weekNav(p, 'loadProg');
-  h += '<div class="card"><div class="row"><div class="sp"><b>' + p.done + ' / ' + p.total + '</b> egzersiz tamamlandı</div>' + (p.avgZorluk ? '<span class="pill" style="background:' + zCol(p.avgZorluk) + ';color:#fff">Ort. zorluk ' + fx(p.avgZorluk, 1) + '</span>' : '') + '</div>' +
-    '<div class="bar" style="margin-top:8px"><i style="width:' + (p.total ? p.done / p.total * 100 : 0) + '%;background:var(--ok)"></i></div></div>';
+  h += '<div class="card"><div class="row"><div class="sp"><b>' + p.done + ' / ' + p.total + '</b> tamamlandı</div>' + (p.avgZorluk ? '<span class="pill" style="background:' + zCol(p.avgZorluk) + ';color:#fff">Ort. zorluk ' + fx(p.avgZorluk, 1) + '</span>' : '') + '</div>' +
+    '<div class="bar" style="margin-top:8px"><i style="width:' + (p.total ? p.done / p.total * 100 : 0) + '%;background:var(--ok)"></i></div>' + runSum(p) + '</div>';
   if(p.antrenorNotu) h += '<div class="card" style="background:#eef6ff"><h3>📋 Antrenörünün notu</h3>' + esc(p.antrenorNotu).replace(/\n/g, '<br>') + '</div>';
   if(!p.rows.length) h += '<div class="card empty">Bu hafta için program henüz yazılmamış.</div>';
   if(p.rows.length) h += '<div class="mut" style="margin:0 4px 10px">Hareketleri yaptıkça doldur, gün bitince alttaki <b>antrenmanı kaydet</b> düğmesiyle hepsini tek seferde kaydet. Yazdıkların uygulamayı kapatsan da telefonda kalır.</div>';
   for(let g = 1; g <= 7; g++){
     const rs = p.rows.filter(r => r.gun === g); if(!rs.length) continue;
     const isD = r => S.draft[r.id] && !S.saving[r.id];
-    const saved = rs.every(r => r.yapilan_set !== ''), dirty = rs.some(isD);
+    const saved = rs.every(isDone), dirty = rs.some(isD);
     const fv = (r, f) => { const d = S.draft[r.id]; return d && d[f] !== undefined ? d[f] : r[f]; };
     h += '<div class="card day"><div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3>' +
-      (saved && !dirty ? '<span class="pill ok">✓ kaydedildi</span>' : '<button class="btn gh sm" onclick="fillPlan(' + g + ')">Programdaki gibi doldur</button>') + '</div>' + rs.map(r =>
+      (saved && !dirty ? '<span class="pill ok">✓ kaydedildi</span>' : '<button class="btn gh sm" onclick="fillPlan(' + g + ')">Programdaki gibi doldur</button>') + '</div>' + rs.map(r => r.tur === 'kosu' ? runCard(r, fv, isD) :
       '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (r.yapilan_set !== '' && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
       '<div class="coach">🎯 ' + esc(r.set || '–') + ' set × ' + esc(r.tekrar || '–') + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
       '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + r.id + '" inputmode="numeric" value="' + esc(fv(r, 'yapilan_set')) + '" oninput="dr(\'' + r.id + '\',\'yapilan_set\',this.value)"></div><div class="f"><label>Tekrar</label><input id="yt_' + r.id + '" value="' + esc(fv(r, 'yapilan_tekrar')) + '" placeholder="12,10,8" oninput="dr(\'' + r.id + '\',\'yapilan_tekrar\',this.value)"></div><div class="f"><label>Ağırlık</label><input id="ya_' + r.id + '" value="' + esc(fv(r, 'agirlik')) + '" placeholder="kg" oninput="dr(\'' + r.id + '\',\'agirlik\',this.value)"></div></div>' +
@@ -467,8 +480,24 @@ function render_ant(){
   if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="saveSNote()">Notu kaydet</button></div>';
   $('app').innerHTML = h;
 }
+function runCard(r, fv, isD){
+  const id = r.id, q = "'" + id + "'";
+  return '<div class="ex run"><div class="row"><div class="t sp">🏃 ' + esc(r.kosu_tipi || r.egzersiz || 'Koşu') + '</div>' + (isDone(r) && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
+    '<div class="coach">🎯 ' + runPlan(r) + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
+    '<div class="grid g3"><div class="f"><label>Km</label><input id="rk_' + id + '" inputmode="decimal" placeholder="5" value="' + esc(fv(r, 'yapilan_km')) + '" oninput="dr(' + q + ',\'yapilan_km\',this.value);autoPace(' + q + ')"></div>' +
+    '<div class="f"><label>Süre</label><input id="rs_' + id + '" placeholder="32:10" value="' + esc(fv(r, 'yapilan_sure')) + '" oninput="dr(' + q + ',\'yapilan_sure\',this.value);autoPace(' + q + ')"></div>' +
+    '<div class="f"><label>Pace /km</label><input id="rp_' + id + '" placeholder="6:25" value="' + esc(fv(r, 'yapilan_pace')) + '" oninput="this.dataset.auto=\'\';dr(' + q + ',\'yapilan_pace\',this.value)"></div></div>' +
+    '<div class="mut" style="margin:-4px 0 8px;font-size:12px">Km ve süreyi yazınca pace kendiliğinden hesaplanır. Süre: dk:sn (32:10) ya da sa:dk:sn (1:05:30).</div>' +
+    '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + id, fv(r, 'zorluk')) +
+    '<div class="f" style="margin-top:8px;margin-bottom:0"><input id="yn_' + id + '" placeholder="Notun (ör. son km zorladı)" value="' + esc(fv(r, 'ogrenci_notu')) + '" oninput="dr(' + q + ',\'ogrenci_notu\',this.value)"></div></div>';
+}
+function autoPace(id){
+  const p = $('rp_' + id); if(!p || (p.value && !p.dataset.auto)) return;
+  const km = n(val('rk_' + id)), s = secs(val('rs_' + id));
+  if(km > 0 && s > 0){ p.value = mmss(s / km); p.dataset.auto = '1'; dr(id, 'yapilan_pace', p.value); }
+}
 function progLocal(p){
-  p.done = p.rows.filter(r => r.yapilan_set !== '').length;
+  p.done = p.rows.filter(isDone).length;
   const zs = p.rows.map(r => n(r.zorluk)).filter(z => z > 0);
   p.avgZorluk = zs.length ? Math.round(zs.reduce((a, b) => a + b, 0) / zs.length * 10) / 10 : null;
 }
@@ -495,22 +524,29 @@ function dr(id, f, v){
 }
 function fillPlan(g){
   S.prog.rows.filter(r => r.gun === g).forEach(r => {
-    const d = S.draft[r.id] || {}, cur = d.yapilan_set !== undefined ? d.yapilan_set : r.yapilan_set;
-    if(String(cur).trim() === ''){ d.yapilan_set = String(r.set || ''); d.yapilan_tekrar = String(r.tekrar || ''); S.draft[r.id] = d; }
+    const d = S.draft[r.id] || {};
+    if(r.tur === 'kosu'){
+      const cur = d.yapilan_km !== undefined ? d.yapilan_km : r.yapilan_km;
+      if(String(cur || '').trim() === ''){ d.yapilan_km = String(r.hedef_km || ''); d.yapilan_pace = String(r.hedef_pace || ''); S.draft[r.id] = d; }
+    } else {
+      const cur = d.yapilan_set !== undefined ? d.yapilan_set : r.yapilan_set;
+      if(String(cur || '').trim() === ''){ d.yapilan_set = String(r.set || ''); d.yapilan_tekrar = String(r.tekrar || ''); S.draft[r.id] = d; }
+    }
   });
-  saveDrafts(); render_ant(); toast('Programdaki set ve tekrarlar dolduruldu, gerekirse düzelt');
+  saveDrafts(); render_ant(); toast('Programdaki hedefler dolduruldu, gerekirse düzelt');
 }
 function saveDayRes(g){
   const wk = S.prog.week, rows = S.prog.rows.filter(r => r.gun === g);
   const items = rows.map(r => {
     const d = S.draft[r.id] || {};
     return {id: r.id, yapilan_set: val('ys_' + r.id).trim(), yapilan_tekrar: val('yt_' + r.id).trim(), agirlik: val('ya_' + r.id).trim(),
-      zorluk: String(d.zorluk !== undefined ? d.zorluk : (r.zorluk || '')), ogrenci_notu: val('yn_' + r.id).trim()};
+      zorluk: String(d.zorluk !== undefined ? d.zorluk : (r.zorluk || '')), ogrenci_notu: val('yn_' + r.id).trim(),
+      yapilan_km: val('rk_' + r.id).trim().replace('.', ','), yapilan_sure: val('rs_' + r.id).trim(), yapilan_pace: normPace(val('rp_' + r.id))};
   });
-  if(!items.some(i => i.yapilan_set || i.yapilan_tekrar || i.agirlik)){ toast('Önce yaptığın set, tekrar ya da ağırlıkları yaz', true); return; }
+  if(!items.some(i => i.yapilan_set || i.yapilan_tekrar || i.agirlik || i.yapilan_km || i.yapilan_sure)){ toast('Önce yaptıklarını yaz (set/tekrar/ağırlık ya da km/süre)', true); return; }
   const ver = {};
   items.forEach(i => {
-    const f = {yapilan_set: i.yapilan_set, yapilan_tekrar: i.yapilan_tekrar, agirlik: i.agirlik, zorluk: i.zorluk, ogrenci_notu: i.ogrenci_notu};
+    const f = {yapilan_set: i.yapilan_set, yapilan_tekrar: i.yapilan_tekrar, agirlik: i.agirlik, zorluk: i.zorluk, ogrenci_notu: i.ogrenci_notu, yapilan_km: i.yapilan_km, yapilan_sure: i.yapilan_sure, yapilan_pace: i.yapilan_pace};
     Object.assign(rows.find(r => r.id === i.id), f);
     S.draft[i.id] = Object.assign({}, f); S.saving[i.id] = 1; ver[i.id] = S.dv[i.id] = (S.dv[i.id] || 0) + 1;
   });
@@ -633,8 +669,8 @@ function render_cprog(){
   if(!S.edit.length) h += '<div class="card"><div class="empty">Bu hafta için program yok.</div><button class="btn sec blk" onclick="copyPrev()">↺ Geçen haftanın programını kopyala</button></div>';
   for(let g = 1; g <= 7; g++){
     const idx = S.edit.map((r, i) => r.gun === g ? i : -1).filter(i => i >= 0);
-    h += '<div class="card day"><div class="row"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3><button class="btn sec sm" onclick="addEx(' + g + ')">＋ Egzersiz</button></div>' +
-      idx.map(i => { const r = S.edit[i]; return '<div class="ex" style="margin-top:8px"><div class="row"><input class="sp" style="width:auto" placeholder="Egzersiz (ör. Squat)" value="' + esc(r.egzersiz) + '" oninput="ed(' + i + ',\'egzersiz\',this.value)"><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
+    h += '<div class="card day"><div class="row"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3><div class="row" style="gap:6px"><button class="btn sec sm" onclick="addEx(' + g + ')">＋ Hareket</button><button class="btn sm" style="background:#d9f3ee;color:#1f7a6a" onclick="addEx(' + g + ',\'kosu\')">＋ Koşu</button></div></div>' +
+      idx.map(i => { const r = S.edit[i]; if(r.tur === 'kosu') return runEd(r, i); return '<div class="ex" style="margin-top:8px"><div class="row"><input class="sp" style="width:auto" placeholder="Egzersiz (ör. Squat)" value="' + esc(r.egzersiz) + '" oninput="ed(' + i + ',\'egzersiz\',this.value)"><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
         '<div class="grid g3" style="margin-top:6px"><div><label>Set</label><input inputmode="numeric" value="' + esc(r.set) + '" oninput="ed(' + i + ',\'set\',this.value)"></div><div><label>Tekrar</label><input value="' + esc(r.tekrar) + '" placeholder="10-12" oninput="ed(' + i + ',\'tekrar\',this.value)"></div><div><label>Sıra</label><div class="row" style="gap:4px"><button class="btn gh sm" onclick="mv(' + i + ',-1)">↑</button><button class="btn gh sm" onclick="mv(' + i + ',1)">↓</button></div></div></div>' +
         '<div style="margin-top:6px"><input placeholder="Not (ör. tempo 3-1-1, 90 sn dinlenme)" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
         (r.yapilan_set !== undefined && (r.yapilan_set || r.agirlik || r.zorluk || r.ogrenci_notu) ? '<div class="stu">🏋️ Öğrenci: ' + esc(r.yapilan_set || '–') + ' set · ' + esc(r.yapilan_tekrar || '–') + ' tekrar · ' + esc(r.agirlik || '–') + (r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '') + (r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '') + '</div>' : '') +
@@ -643,7 +679,7 @@ function render_cprog(){
   h += '<div style="position:sticky;bottom:72px;z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
   h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\')})">Notu kaydet</button></div>';
   h += '<div class="card" style="background:#fff8f1"><h3>💬 Öğrencinin haftalık notu</h3>' + (p.ogrenciNotu ? esc(p.ogrenciNotu).replace(/\n/g, '<br>') : '<span class="mut">Henüz not yok</span>') +
-    '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div></div>';
+    '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
   $('app').innerHTML = h;
 }
 function guardDirty(){ return !S.dirty || confirmLike(); }
@@ -651,14 +687,23 @@ function confirmLike(){ if(S._dc){ S._dc = false; return true; } S._dc = true; t
 function chgProgStu(id){ if(!guardDirty()){ render_cprog(); return; } loadCProg(S.cprog.week, id); }
 function chgProgWeek(w){ if(!guardDirty()) return; loadCProg(w); }
 function ed(i, k, v){ S.edit[i][k] = v; if(!S.dirty){ S.dirty = true; const b = document.querySelector('#app .btn.blk[onclick="saveProg()"]'); if(b) b.textContent = '💾 Programı kaydet (değişiklik var)'; } }
-function addEx(g){ S.edit.push({gun: g, egzersiz: '', set: '', tekrar: '', antrenor_notu: ''}); S.dirty = true; render_cprog(); }
+function addEx(g, tur){ S.edit.push({gun: g, tur: tur === 'kosu' ? 'kosu' : 'kuvvet', egzersiz: '', set: '', tekrar: '', antrenor_notu: '', kosu_tipi: tur === 'kosu' ? 'Easy run' : '', hedef_km: '', hedef_pace: ''}); S.dirty = true; render_cprog(); }
+function runEd(r, i){
+  const tip = r.kosu_tipi || 'Easy run', opts = KOSU.indexOf(tip) < 0 ? KOSU.concat([tip]) : KOSU;
+  return '<div class="ex run" style="margin-top:8px"><div class="row"><span style="font-size:18px">🏃</span><select class="sp" style="width:auto;font-weight:600" onchange="ed(' + i + ',\'kosu_tipi\',this.value)">' +
+    opts.map(k => '<option' + (k === tip ? ' selected' : '') + '>' + esc(k) + '</option>').join('') + '</select><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
+    '<div class="grid g3" style="margin-top:6px"><div><label>Hedef km</label><input inputmode="decimal" placeholder="5" value="' + esc(r.hedef_km) + '" oninput="ed(' + i + ',\'hedef_km\',this.value)"></div><div><label>Hedef pace /km</label><input placeholder="6:30" value="' + esc(r.hedef_pace) + '" oninput="ed(' + i + ',\'hedef_pace\',this.value)"></div><div><label>Sıra</label><div class="row" style="gap:4px"><button class="btn gh sm" onclick="mv(' + i + ',-1)">↑</button><button class="btn gh sm" onclick="mv(' + i + ',1)">↓</button></div></div></div>' +
+    '<div style="margin-top:6px"><input placeholder="Not (ör. 6×400 m, aralarda 90 sn yürüyüş)" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
+    (r.yapilan_km || r.yapilan_sure || r.yapilan_pace || r.zorluk || r.ogrenci_notu ? '<div class="stu">🏃 Öğrenci: ' + (r.yapilan_km ? fx(n(r.yapilan_km), 2) + ' km' : '– km') + ' · ' + esc(r.yapilan_sure || '–') + ' · ' + esc(r.yapilan_pace || '–') + ' /km' +
+      (r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '') + (r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '') + '</div>' : '') + '</div>';
+}
 function rmEx(i){ S.edit.splice(i, 1); S.dirty = true; render_cprog(); }
 function mv(i, d){
   const g = S.edit[i].gun, idx = S.edit.map((r, j) => r.gun === g ? j : -1).filter(j => j >= 0), pos = idx.indexOf(i), to = idx[pos + d];
   if(to === undefined) return; const t = S.edit[i]; S.edit[i] = S.edit[to]; S.edit[to] = t; S.dirty = true; render_cprog();
 }
 function saveProg(){
-  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu}))})
+  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
     .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi'); render_cprog(); });
 }
 function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı'); render_cprog(); }); }
