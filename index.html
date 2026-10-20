@@ -98,6 +98,22 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .push{background:linear-gradient(135deg,#fff4f8,#f3efff);border-color:#f0d6e2}
 .push b{display:block;margin-bottom:2px}
+.pi{display:flex;gap:8px;align-items:flex-start;padding:9px 0;border-top:1px dashed rgba(0,0,0,.08)}
+.pi:first-of-type{border-top:0}
+.pi .n{flex:1;min-width:0}
+.pi .alt{font-size:12.5px;color:#6b5f73;margin-top:2px}
+.pi .acts{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.yendi{background:#e3f6ec;color:#2f8a5c;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+.howto{background:rgba(255,255,255,.7);border-radius:10px;padding:8px 10px;font-size:13px;margin:6px 0 2px;white-space:pre-wrap}
+.dchips{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:10px}
+.dchips button{border:1px solid var(--line);background:#fff;border-radius:12px;padding:6px 0;font-size:12px;cursor:pointer;line-height:1.2}
+.dchips button b{display:block;font-size:13px}
+.dchips button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.dchips button.today:not(.on){border-color:var(--pri);color:#b04f6e}
+.mi{border:1px solid var(--line);border-radius:12px;padding:8px;margin-top:8px;background:#fff}
+.mi .g5x{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:5px;margin-top:5px}
+.mi input{padding:8px 8px;font-size:14px}
+.mi label{font-size:11px;margin:0 0 2px}
 </style>
 </head>
 <body>
@@ -114,8 +130,8 @@ const TOKEN = (function(){
   return t;
 })();
 let ROLE = 'none';
-const OGUNLER = ['Kahvaltı','Ara öğün 1','Öğle','Ara öğün 2','Akşam','Gece'];
-const OG_RENK = {'Kahvaltı':'#fff4d6','Ara öğün 1':'#e8f7ee','Öğle':'#e6f2ff','Ara öğün 2':'#f3ecff','Akşam':'#ffe8ee','Gece':'#ece9f7','Su':'#e0f7f4'};
+const OGUNLER = ['Kahvaltı','Ara öğün 1','Öğle','Ara öğün 2','Antrenman öncesi','Antrenman sonrası','Akşam','Gece'];
+const OG_RENK = {'Kahvaltı':'#fff4d6','Ara öğün 1':'#e8f7ee','Öğle':'#e6f2ff','Ara öğün 2':'#f3ecff','Akşam':'#ffe8ee','Gece':'#ece9f7','Su':'#e0f7f4','Antrenman öncesi':'#e3f6f1','Antrenman sonrası':'#fdeee2'};
 const KOSU = ['Easy run','Interval','Tempo run','Long run','Recovery run','Fartlek','Yarış / Test'];
 const GUN = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const AY = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
@@ -157,6 +173,8 @@ function runSum(p){
   const d = rs.reduce((a, r) => a + n(r.yapilan_km), 0), t = rs.reduce((a, r) => a + n(r.hedef_km), 0);
   return '<div class="mut" style="margin-top:8px">🏃 Bu hafta koşu: <b>' + fx(d, 1) + ' km</b>' + (t ? ' / hedef ' + fx(t, 1) + ' km' : '') + '</div>';
 }
+function nTxt(r){ return r && r.notified === true ? ' · 🔔 öğrenciye bildirim gitti' : r && r.notified === 'nosub' ? ' · ⚠️ öğrenci bildirimleri henüz açmamış' : ''; }
+function gunNo(ds){ return (pd(ds).getDay() + 6) % 7 + 1; }
 function zCol(z){ z = n(z); if(!z) return '#d8d0d6'; const h = 120 - (z - 1) * (120 / 9); return 'hsl(' + h + ',62%,52%)'; }
 function pctCls(p){ return p == null ? '' : p > 1.15 ? 'bad' : p >= 0.85 ? 'ok' : 'warn'; }
 
@@ -357,18 +375,18 @@ function stBoot(r){
   $('sub').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋';
 }
 function stInit(r){
-  setNav([['bugun','☀︎','Bugün'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']]);
+  setNav([['bugun','☀︎','Bugün'],['plan','🍽︎','Planım'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']]);
   stBoot(r); go('bugun');
 }
 function loadDay(d){
   S.date = d;
-  if(S.day && S.day.date !== d){ S.day = Object.assign({}, S.day, {date: d, entries: [], totals: {kcal: 0, p: 0, k: 0, y: 0, su: 0}, loading: true}); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle') render_ekle(); }
-  call('day', {date: d}).then(r => { if(r.date !== S.date) return; S.day = r; saveCache(); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle' && idle()) render_ekle(); }).catch(() => {});
+  if(S.day && S.day.date !== d){ S.day = Object.assign({}, S.day, {date: d, entries: [], totals: {kcal: 0, p: 0, k: 0, y: 0, su: 0}, loading: true}); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'ekle') render_ekle(); else if(S.tab === 'plan') render_plan(); }
+  call('day', {date: d}).then(r => { if(r.date !== S.date) return; S.day = r; saveCache(); if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'plan') render_plan(); else if(S.tab === 'ekle' && idle()) render_ekle(); }).catch(() => {});
 }
 function render_bugun(){
   const d = S.day;
   $('app').innerHTML = pushCard() + dateNav(d.date, 'loadDay') + noTargets(d.targets) +
-    '<div class="card">' + rings(d.totals, d.targets) + '</div>' +
+    '<div class="card">' + rings(d.totals, d.targets) + '</div>' + uyumCard() +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
     '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
     '<div class="card"><h3>Son 7 gün · kalori</h3>' + weekBars(d.week, d.targets.kcal) + '</div>' +
@@ -613,16 +631,82 @@ function saveSNote(){
   sync('saveStudentNote', {week: wk, text: t}, r => { if(S.prog && S.prog.week === wk) S.prog.ogrenciNotu = r.ogrenciNotu; });
 }
 
+/* --- Planım (beslenme planı) --- */
+ST_VIEWS.plan = () => { if(S.plan) render_plan(); else wait_(); call('plan', {}, !!S.plan).then(p => { S.plan = p; if(S.tab === 'plan' && idle()) render_plan(); }).catch(() => {}); };
+function dayMeals(){ return S.plan ? S.plan.meals.filter(m => m.gun === gunNo(S.date)) : []; }
+function eatenOf(pid){ return S.day && !S.day.loading ? S.day.entries.find(e => e.plan_id === pid) : null; }
+function uyum(){ const ms = dayMeals(), ids = [].concat(...ms.map(m => m.items.map(i => i.id))); return {total: ids.length, done: ids.filter(id => eatenOf(id)).length}; }
+function uyumCard(){
+  const u = uyum(); if(!u.total) return '';
+  const p = u.done / u.total;
+  return '<div class="card" style="cursor:pointer" onclick="go(\'plan\')"><div class="row"><b class="sp">🍽 Plana uyum</b><span class="pill ' + (p >= .8 ? 'ok' : p >= .5 ? 'warn' : 'bad') + '">' + u.done + ' / ' + u.total + '</span></div>' +
+    '<div class="bar" style="margin-top:8px"><i style="width:' + p * 100 + '%;background:var(--ok)"></i></div><div class="mut" style="margin-top:6px">Planım\'a git ›</div></div>';
+}
+function render_plan(){
+  const ms = dayMeals(), u = uyum();
+  let h = dateNav(S.date, 'loadDay');
+  if(!S.plan || !S.plan.meals.length){ $('app').innerHTML = h + '<div class="card empty">🍽<br>Dide Hoca henüz beslenme planını yazmadı.<br>Planın hazır olunca burada göreceksin.</div>'; return; }
+  if(!ms.length){ $('app').innerHTML = h + '<div class="card empty">Bu gün (' + GUN[gunNo(S.date) - 1] + ') için planlanmış öğün yok.</div>'; return; }
+  const pk = ms.reduce((a, m) => a + m.items.reduce((b, i) => b + n(i.kcal), 0), 0);
+  h += '<div class="card"><div class="row"><b class="sp">' + GUN[gunNo(S.date) - 1] + ' planın</b><span class="pill ' + (u.done === u.total ? 'ok' : 'warn') + '">' + u.done + ' / ' + u.total + ' yendi</span></div>' +
+    '<div class="bar" style="margin-top:8px"><i style="width:' + (u.total ? u.done / u.total * 100 : 0) + '%;background:var(--ok)"></i></div>' +
+    '<div class="mut" style="margin-top:6px">Plan toplamı ' + Math.round(pk) + ' kcal' + (S.day.targets.kcal ? ' · hedef ' + S.day.targets.kcal + ' kcal' : '') + '. Yediğin besinde <b>Yedim</b>\'e dokun, günlüğüne işlensin.</div></div>';
+  if(S.day.loading) h += '<div class="empty">Yükleniyor…</div>';
+  ms.forEach(m => {
+    const left = m.items.filter(i => !eatenOf(i.id));
+    h += '<div class="og" style="background:' + (OG_RENK[m.ogun] || '#f6f2f4') + '"><h4><span>' + esc(m.ogun) + (m.saat ? ' <span class="mut">· ' + esc(m.saat) + '</span>' : '') + '</span>' +
+      (left.length && m.items.length > 1 && !S.day.loading ? '<button class="btn sm" style="padding:4px 10px" onclick="eatMeal(\'' + m.id + '\')">Hepsini yedim</button>' : (left.length ? '' : '<span class="yendi">✓ tamam</span>')) + '</h4>' +
+      (m.aciklama ? '<div class="howto">📝 ' + esc(m.aciklama) + '</div>' : '') +
+      m.items.map(i => { const e = eatenOf(i.id);
+        return '<div class="pi"><div class="n"><b>' + esc(i.besin) + '</b>' + (i.miktar ? ' · ' + esc(i.miktar) : '') +
+          (i.kcal || i.p ? '<div class="mut" style="font-size:12px">' + fx(i.kcal) + ' kcal · P ' + fx(i.p, 1) + ' · K ' + fx(i.k, 1) + ' · Y ' + fx(i.y, 1) + '</div>' : '') +
+          (i.alternatif ? '<div class="alt">↔ ya da: ' + esc(i.alternatif) + '</div>' : '') + (i.not ? '<div class="alt">💬 ' + esc(i.not) + '</div>' : '') +
+          (e && e.besin !== i.besin ? '<div class="alt">✓ yerine yedin: ' + esc(e.besin) + '</div>' : '') + '</div><div class="acts">' +
+          (S.day.loading ? '' : e ? '<span class="yendi">✓ Yendi</span><button class="btn gh sm" style="padding:3px 8px;font-size:12px" onclick="uneat(\'' + i.id + '\')">Geri al</button>'
+            : '<button class="btn sm" onclick="eat(\'' + m.id + '\',\'' + i.id + '\')">Yedim</button>' + (i.alternatif ? '<button class="btn sec sm" style="padding:4px 8px;font-size:12px" onclick="eat(\'' + m.id + '\',\'' + i.id + '\',1)">Alternatifi</button>' : '')) +
+          '</div></div>'; }).join('') + '</div>';
+  });
+  $('app').innerHTML = h;
+}
+function planItem(mid, iid){ const m = S.plan.meals.find(x => x.id === mid); return {m, i: m && m.items.find(x => x.id === iid)}; }
+function eat(mid, iid, alt){
+  if(S.day.loading) return;
+  const {m, i} = planItem(mid, iid); if(!i || eatenOf(iid)) return;
+  const e = {ogun: m.ogun, besin: alt ? i.alternatif : i.besin, miktar: alt ? '' : i.miktar, kcal: i.kcal, p: i.p, k: i.k, y: i.y, plan_id: i.id};
+  addLocal(e); toast('✓ ' + e.besin + ' günlüğüne işlendi'); render_plan();
+  sync('addEntry', Object.assign({date: S.date}, e), r => { applyDay(r); if(S.tab === 'plan' && idle()) render_plan(); });
+}
+function eatMeal(mid){
+  if(S.day.loading) return;
+  const m = S.plan.meals.find(x => x.id === mid); if(!m) return;
+  const items = m.items.filter(i => !eatenOf(i.id)).map(i => ({ogun: m.ogun, besin: i.besin, miktar: i.miktar, kcal: i.kcal, p: i.p, k: i.k, y: i.y, plan_id: i.id}));
+  if(!items.length) return;
+  items.forEach(e => addLocal(e)); toast('✓ ' + m.ogun + ' günlüğüne işlendi'); render_plan();
+  sync('addEntries', {date: S.date, items}, r => { applyDay(r); if(S.tab === 'plan' && idle()) render_plan(); });
+}
+function uneat(iid){
+  const e = eatenOf(iid); if(!e) return;
+  if(String(e.id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra geri alabilirsin'); return; }
+  S.day.entries = S.day.entries.filter(x => x.id !== e.id); recalc(S.day); render_plan();
+  sync('deleteEntry', {id: e.id, date: S.date}, r => { if(r.date === S.date) S.day = r; if(S.tab === 'plan' && idle()) render_plan(); });
+}
+
 /* =================== ANTRENÖR =================== */
 const C_VIEWS = {
   ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
   program: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.cprog) render_cprog(); if(S.sid) loadCProg(S.cprog ? S.cprog.week : todayS()); },
-  ayarlar: () => { call('settings').then(r => { S.set = r; render_ayar(); }); }
+  ayarlar: () => { call('settings').then(r => { S.set = r; render_ayar(); }); },
+  beslenme: () => {
+    if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id;
+    if(!S.cfavs) call('favs', {}, true).then(f => { S.cfavs = f; if(S.tab === 'beslenme' && idle()) render_np(); }).catch(() => {});
+    if(S.np && S.np.sid === S.sid) render_np(); else wait_();
+    if(S.sid && !S.npDirty) loadNp(S.sid);
+  }
 };
 function cInit(r){
   $('sub').textContent = 'Antrenör Paneli';
-  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['ayarlar','⚙︎','Ayarlar']]);
+  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['ayarlar','⚙︎','Ayarlar']]);
   S.ov = r; S.ovTs = Date.now(); go('ozet');
 }
 function studentSel(fn){
@@ -645,7 +729,7 @@ function render_ozet(){
       '<div>Su <b>' + fx(s.today.su) + '</b>' + (t.su ? '/' + t.su : '') + pb(s.today.su, t.su, 'var(--su)') + '</div></div>' +
       '<div class="mut" style="margin-top:6px">7 gün ort.: ' + (s.avg ? s.avg.kcal + ' kcal · P ' + s.avg.p + ' g (' + s.nd + ' gün)' : '–') +
       ' · Kilo: ' + fx(s.cur, 1) + (s.change != null ? ' (' + (s.change > 0 ? '+' : '') + fx(s.change, 1) + ')' : '') +
-      ' · Antrenman: ' + (s.prTotal ? s.prDone + '/' + s.prTotal : 'program yok') + '</div></div>';
+      ' · Antrenman: ' + (s.prTotal ? s.prDone + '/' + s.prTotal : 'program yok') + (s.planTotal ? ' · Plan: ' + s.planDone + '/' + s.planTotal : '') + '</div></div>';
   }).join('') + '</div>';
   $('app').innerHTML = h;
 }
@@ -689,7 +773,7 @@ function render_det(){
 function macroChk(){ const mk = n(val('t_p')) * 4 + n(val('t_k')) * 4 + n(val('t_y')) * 9, kc = n(val('t_kcal')); $('mchk').innerHTML = mk ? 'Makrolardan hesaplanan: <b>' + Math.round(mk) + ' kcal</b>' + (kc ? ' (girilen ' + kc + ', fark ' + Math.round(mk - kc) + ')' : '') : ''; }
 function saveTg(){
   call('saveTargets', {sid: S.sid, kcal: val('t_kcal'), p: val('t_p'), k: val('t_k'), y: val('t_y'), su: val('t_su'), amac: val('t_amac'), hedefKilo: val('t_hk')})
-    .then(r => { S.det = r; toast('✓ Hedefler kaydedildi' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_det(); call('overview').then(o => S.ov = o); });
+    .then(r => { S.det = r; toast('✓ Hedefler kaydedildi' + nTxt(r)); render_det(); call('overview').then(o => S.ov = o); });
 }
 function setAct(a){ call('setActive', {sid: S.sid, aktif: a}).then(r => { S.det = r; render_det(); call('overview').then(o => S.ov = o); }); }
 function cp(id){
@@ -717,7 +801,7 @@ function render_cprog(){
         '</div>'; }).join('') + '</div>';
   }
   h += '<div style="position:sticky;bottom:72px;z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
-  h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\'+(r.notified?\' · 🔔 öğrenciye bildirim gitti\':\'\'))})">Notu kaydet</button></div>';
+  h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\'+nTxt(r))})">Notu kaydet</button></div>';
   h += '<div class="card" style="background:#fff8f1"><h3>💬 Öğrencinin haftalık notu</h3>' + (p.ogrenciNotu ? esc(p.ogrenciNotu).replace(/\n/g, '<br>') : '<span class="mut">Henüz not yok</span>') +
     '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
   $('app').innerHTML = h;
@@ -744,9 +828,98 @@ function mv(i, d){
 }
 function saveProg(){
   call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
-    .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_cprog(); });
+    .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi' + nTxt(r)); render_cprog(); });
 }
-function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_cprog(); }); }
+function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı' + nTxt(r)); render_cprog(); }); }
+/* --- Antrenör: beslenme planı --- */
+function loadNp(sid){
+  S.sid = sid;
+  call('nutrition', {sid}).then(r => {
+    if(sid !== S.sid) return;
+    S.np = r; S.np.sid = sid; S.npEdit = JSON.parse(JSON.stringify(r.meals)); S.npDirty = false;
+    if(!S.npDay) S.npDay = r.today;
+    if(S.tab === 'beslenme') render_np();
+  }).catch(() => {});
+}
+function chgNpStu(id){ if(S.npDirty && !confirmLike()){ render_np(); return; } S.npDirty = false; S.np = null; wait_(); loadNp(id); }
+function npDirty(){ if(!S.npDirty){ S.npDirty = true; const b = $('npSave'); if(b) b.textContent = '💾 Beslenme planını kaydet (değişiklik var)'; } }
+function npSum(g){ const t = {kcal: 0, p: 0, k: 0, y: 0}; S.npEdit.filter(m => m.gun === g).forEach(m => m.items.forEach(i => { t.kcal += n(i.kcal); t.p += n(i.p); t.k += n(i.k); t.y += n(i.y); })); return t; }
+function npTot(){
+  const t = npSum(S.npDay), tg = S.np.targets || {};
+  const cell = (v, tv, u, lab) => { const p = tv ? v / tv : null; return '<div class="stat" style="padding:8px"><b style="font-size:16px">' + Math.round(v) + (tv ? '<span class="mut" style="font-size:12px;font-weight:500"> / ' + tv + '</span>' : '') + '</b><span>' + lab + (p != null ? ' <i class="pill ' + pctCls(p) + '" style="font-style:normal">%' + Math.round(p * 100) + '</i>' : '') + '</span></div>'; };
+  return '<div class="grid g4" style="gap:6px">' + cell(t.kcal, tg.kcal, '', 'kcal') + cell(t.p, tg.p, 'g', 'Protein') + cell(t.k, tg.k, 'g', 'Karb') + cell(t.y, tg.y, 'g', 'Yağ') + '</div>';
+}
+function render_np(){
+  if(!S.np || S.np.sid !== S.sid){ wait_(); return; }
+  const g = S.npDay, ms = S.npEdit.map((m, i) => [m, i]).filter(x => x[0].gun === g);
+  let h = studentSel('chgNpStu');
+  h += '<div class="dchips">' + GK.map((k, i) => { const c = S.npEdit.filter(m => m.gun === i + 1).length; return '<button class="' + (g === i + 1 ? 'on ' : '') + (S.np.today === i + 1 ? 'today' : '') + '" onclick="S.npDay=' + (i + 1) + ';render_np()"><b>' + k + '</b>' + (c ? c + ' öğün' : '–') + '</button>'; }).join('') + '</div>';
+  h += '<div class="card"><div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' · plan toplamı</h3></div>' + npTot() + (S.np.targets && S.np.targets.kcal ? '' : '<div class="mut" style="margin-top:6px">Bu öğrencinin hedefleri girilmemiş (Öğrenci → Hedefler).</div>') + '</div>';
+  if(!ms.length) h += '<div class="card empty">' + GUN[g - 1] + ' için henüz öğün yok.<br>Aşağıdan öğün ekle ya da başka bir günü buraya kopyala.</div>';
+  ms.forEach(([m, mi]) => {
+    const opts = OGUNLER.indexOf(m.ogun) < 0 && m.ogun ? OGUNLER.concat([m.ogun]) : OGUNLER;
+    h += '<div class="og" style="background:' + (OG_RENK[m.ogun] || '#f6f2f4') + '"><div class="row" style="gap:5px;flex-wrap:nowrap"><select style="width:auto;flex:1;min-width:0;font-weight:700" onchange="npSet(' + mi + ',\'ogun\',this.value,1)">' + opts.map(o => '<option' + (o === m.ogun ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' +
+      '<input type="time" style="width:92px;padding:8px 6px" value="' + esc(m.saat) + '" onchange="npSet(' + mi + ',\'saat\',this.value)">' +
+      '<button class="x" style="background:#fff;color:var(--ink)" title="Yukarı" onclick="npMove(' + mi + ',-1)">↑</button><button class="x" style="background:#fff;color:var(--ink)" title="Aşağı" onclick="npMove(' + mi + ',1)">↓</button><button class="x" onclick="npDel(' + mi + ')">✕</button></div>' +
+      m.items.map((it, ii) => '<div class="mi"><div class="row" style="gap:6px"><input class="sp" style="width:auto" list="favlist" placeholder="Besin (ör. Yumurta)" value="' + esc(it.besin) + '" oninput="npItem(' + mi + ',' + ii + ',\'besin\',this.value)" onchange="npFav(' + mi + ',' + ii + ',this.value)"><button class="x" onclick="npItemDel(' + mi + ',' + ii + ')">✕</button></div>' +
+        '<div class="g5x">' + [['miktar','Miktar','ör. 2 adet'],['kcal','kcal',''],['p','P (g)',''],['k','K (g)',''],['y','Y (g)','']].map(f => '<div><label>' + f[1] + '</label><input id="np_' + mi + '_' + ii + '_' + f[0] + '"' + (f[0] === 'miktar' ? '' : ' inputmode="decimal"') + ' placeholder="' + f[2] + '" value="' + esc(it[f[0]] === 0 ? '' : it[f[0]]) + '" oninput="npItem(' + mi + ',' + ii + ',\'' + f[0] + '\',this.value)"></div>').join('') + '</div>' +
+        '<input style="margin-top:5px" placeholder="Alternatif (ör. 1 kase lor peyniri)" value="' + esc(it.alternatif) + '" oninput="npItem(' + mi + ',' + ii + ',\'alternatif\',this.value)"></div>').join('') +
+      '<button class="btn sec sm" style="margin-top:8px" onclick="npItemAdd(' + mi + ')">＋ Besin</button>' +
+      '<textarea style="margin-top:8px;min-height:60px" placeholder="Açıklama: nasıl hazırlanacak, ne yapılacak (ör. yumurtaları haşla, yulafı sütle pişir, antrenmandan 1 saat önce ye)" oninput="npSet(' + mi + ',\'aciklama\',this.value)">' + esc(m.aciklama) + '</textarea></div>';
+  });
+  h += '<div class="row" style="margin-bottom:12px"><button class="btn sec sp" onclick="npAdd()">＋ Öğün ekle</button><button class="btn gh" onclick="S.npCopy=!S.npCopy;render_np()">⧉ Günü kopyala</button></div>';
+  if(S.npCopy) h += '<div class="card"><b>' + GUN[g - 1] + ' gününü şu günlere kopyala:</b><div class="mut" style="margin:4px 0 8px">Seçtiğin günlerin mevcut planı bununla değişir.</div><div class="chips" id="cpdays">' + GUN.map((d, i) => i + 1 === g ? '' : '<label style="display:flex;gap:4px;align-items:center;font-size:13px;color:var(--ink);margin:0 8px 6px 0"><input type="checkbox" value="' + (i + 1) + '" style="width:auto">' + d + '</label>').join('') + '</div><button class="btn sm" style="margin-top:6px" onclick="npCopyDo()">Kopyala</button></div>';
+  h += '<div class="card"><b>Başka öğrencinin planını kopyala</b><div class="row" style="margin-top:8px"><select id="npFrom" class="sp" style="width:auto">' + S.ov.students.filter(s => s.id !== S.sid).map(s => '<option value="' + s.id + '">' + esc(s.ad) + '</option>').join('') + '</select><button class="btn gh sm" onclick="npFromStu()">Kopyala</button></div><div class="mut" style="margin-top:6px">Tüm haftayı getirir; kaydetmeden önce düzenleyebilirsin.</div></div>';
+  h += '<div style="position:sticky;bottom:72px;z-index:4;margin-bottom:12px"><button id="npSave" class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="npSave()">' + (S.npDirty ? '💾 Beslenme planını kaydet (değişiklik var)' : '💾 Beslenme planını kaydet') + '</button></div>';
+  h += '<datalist id="favlist">' + (S.cfavs || []).map(f => '<option value="' + esc(f.besin) + '">' + esc(f.porsiyon) + ' · ' + fx(f.kcal) + ' kcal</option>').join('') + '</datalist>';
+  $('app').innerHTML = h;
+}
+function npSet(mi, f, v, re){ S.npEdit[mi][f] = v; npDirty(); if(re) render_np(); }
+function npItem(mi, ii, f, v){ S.npEdit[mi].items[ii][f] = v; npDirty(); }
+function npFav(mi, ii, v){
+  const f = (S.cfavs || []).find(x => x.besin.toLocaleLowerCase('tr') === String(v).trim().toLocaleLowerCase('tr')); if(!f) return;
+  const it = S.npEdit[mi].items[ii];
+  if(n(it.kcal) || n(it.p)) return;
+  Object.assign(it, {besin: f.besin, miktar: it.miktar || f.porsiyon, kcal: f.kcal, p: f.p, k: f.k, y: f.y}); npDirty(); render_np();
+  toast('Değerler "sık yenenler"den geldi: 1 porsiyon = ' + f.porsiyon);
+}
+function npItemAdd(mi){ S.npEdit[mi].items.push({besin: '', miktar: '', kcal: '', p: '', k: '', y: '', alternatif: '', not: ''}); npDirty(); render_np(); }
+function npItemDel(mi, ii){ S.npEdit[mi].items.splice(ii, 1); npDirty(); render_np(); }
+function npAdd(){
+  const used = S.npEdit.filter(m => m.gun === S.npDay).map(m => m.ogun), next = OGUNLER.find(o => used.indexOf(o) < 0) || 'Ara öğün 1';
+  S.npEdit.push({gun: S.npDay, ogun: next, saat: '', aciklama: '', items: [{besin: '', miktar: '', kcal: '', p: '', k: '', y: '', alternatif: '', not: ''}]});
+  npDirty(); render_np(); window.scrollTo(0, document.body.scrollHeight);
+}
+function npDel(mi){ S.npEdit.splice(mi, 1); npDirty(); render_np(); }
+function npMove(mi, d){
+  const g = S.npEdit[mi].gun, idx = S.npEdit.map((m, j) => m.gun === g ? j : -1).filter(j => j >= 0), pos = idx.indexOf(mi), to = idx[pos + d];
+  if(to === undefined) return; const t = S.npEdit[mi]; S.npEdit[mi] = S.npEdit[to]; S.npEdit[to] = t; npDirty(); render_np();
+}
+function npClone(m, g){ return {gun: g, ogun: m.ogun, saat: m.saat, aciklama: m.aciklama, items: m.items.map(i => ({besin: i.besin, miktar: i.miktar, kcal: i.kcal, p: i.p, k: i.k, y: i.y, alternatif: i.alternatif, not: i.not || ''}))}; }
+function npCopyDo(){
+  const days = [...document.querySelectorAll('#cpdays input:checked')].map(x => Number(x.value)); if(!days.length){ toast('Kopyalanacak günleri seç', true); return; }
+  const src = S.npEdit.filter(m => m.gun === S.npDay);
+  S.npEdit = S.npEdit.filter(m => days.indexOf(m.gun) < 0);
+  days.forEach(d => src.forEach(m => S.npEdit.push(npClone(m, d))));
+  S.npCopy = false; npDirty(); render_np(); toast('✓ ' + GUN[S.npDay - 1] + ' → ' + days.map(d => GK[d - 1]).join(', ') + ' kopyalandı (kaydetmeyi unutma)');
+}
+function npFromStu(){
+  const sid = val('npFrom'); if(!sid) return;
+  call('nutrition', {sid}).then(r => {
+    if(!r.meals.length){ toast('O öğrencinin planı boş', true); return; }
+    S.npEdit = r.meals.map(m => npClone(m, m.gun)); npDirty(); render_np(); toast('✓ Plan kopyalandı, düzenleyip kaydet');
+  }).catch(() => {});
+}
+function npSave(){
+  const meals = S.npEdit.map(m => ({id: m.id || '', gun: m.gun, ogun: m.ogun, saat: m.saat, aciklama: m.aciklama,
+    items: m.items.filter(i => String(i.besin || '').trim()).map(i => ({id: i.id || '', besin: i.besin, miktar: i.miktar, kcal: n(i.kcal), p: n(i.p), k: n(i.k), y: n(i.y), alternatif: i.alternatif, not: i.not || ''}))}));
+  const sid = S.sid;
+  call('saveNutrition', {sid, meals}).then(r => {
+    if(sid !== S.sid) return;
+    S.np = r; S.np.sid = sid; S.npEdit = JSON.parse(JSON.stringify(r.meals)); S.npDirty = false;
+    toast('✓ Beslenme planı kaydedildi' + nTxt(r)); render_np(); call('overview', {}, true).then(o => S.ov = o).catch(() => {});
+  }).catch(() => {});
+}
 function render_ayar(){
   const st = S.set;
   $('app').innerHTML = '<div class="card"><h3>➕ Yeni öğrenci</h3><div class="row"><input id="ns" class="sp" style="width:auto" placeholder="Ad Soyad"><button class="btn" onclick="addStu()">Ekle</button></div><div id="nsres"></div></div>' +
@@ -789,6 +962,7 @@ function boot(r){
 function prefetch(){
   call('meas', {}, true).then(m => { if(!S.meas) S.meas = m; }).catch(() => {});
   call('program', {week: todayS()}, true).then(p => { if(!S.prog) S.prog = p; }).catch(() => {});
+  call('plan', {}, true).then(p => { S.plan = p; if(S.tab === 'bugun' && idle()) render_bugun(); else if(S.tab === 'plan' && idle()) render_plan(); }).catch(() => {});
 }
 window.addEventListener('unhandledrejection', ev => ev.preventDefault());
 if(!TOKEN) locked('Bu sayfaya erişim için kişisel linkin gerekiyor.');
