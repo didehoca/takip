@@ -930,7 +930,7 @@ function render_ayar(){
     '<div class="card"><h3>⚠️ Uyarı eşikleri</h3><div class="grid g2">' +
     [['esik_giris_gun','Kaç gün giriş yoksa uyar'],['esik_olcum_gun','Kaç gün ölçüm yoksa uyar'],['esik_kalori_ust','Kalori üst sınır (% hedef)'],['esik_kalori_alt','Kalori alt sınır (% hedef)'],['esik_protein_alt','Protein alt sınır (% hedef)'],['esik_su_alt','Su alt sınır (% hedef)']]
       .map(x => '<div class="f"><label>' + x[1] + '</label><input id="e_' + x[0] + '" inputmode="numeric" value="' + st[x[0]] + '"></div>').join('') +
-    '</div><button class="btn sec blk" onclick="saveSet()">Eşikleri kaydet</button><div class="mut" style="margin-top:8px">Uyarılar son 7 günün (bugün hariç) ortalamasına göre hesaplanır.</div></div>';
+    '</div><button class="btn sec blk" onclick="saveSet()">Eşikleri kaydet</button><div class="mut" style="margin-top:8px">Uyarılar bugünün değerlerine göre hesaplanır. "Fazla" uyarısı hedef aşılınca hemen, "düşük" uyarıları gün bitmeden yanıltmasın diye akşam 18:00\'den sonra çıkar.</div></div>';
 }
 function addStu(){
   const ad = val('ns').trim(); if(!ad){ toast('İsim yaz', true); return; }
