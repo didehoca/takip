@@ -763,6 +763,7 @@ function uneat(iid){
 /* =================== ANTRENÖR =================== */
 const C_VIEWS = {
   ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
+  rapor: () => { if(S.wk) render_rapor(); else wait_(); loadRapor(S.wk ? S.wk.week : lastWeekStart()); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
   program: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.cprog) render_cprog(); if(S.sid) loadCProg(S.cprog ? S.cprog.week : todayS()); },
   ayarlar: () => { call('settings').then(r => { S.set = r; render_ayar(); }); },
@@ -776,8 +777,42 @@ const C_VIEWS = {
 function cInit(r){
   $('sub').textContent = 'Antrenör Paneli';
   setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['ayarlar','⚙︎','Ayarlar']]);
-  S.ov = r; S.ovTs = Date.now(); go('ozet');
+  S.ov = r; S.ovTs = Date.now();
+  go(new URLSearchParams(location.search).get('v') === 'rapor' ? 'rapor' : 'ozet');
   pushInit('coach');
+}
+/* --- haftalık rapor --- */
+function lastWeekStart(){ const t = todayS(), wd = (pd(t).getDay() + 6) % 7; return addD(t, wd === 6 ? -6 : -wd - 7); }
+function loadRapor(w){ call('weekly', {week: w}, true).then(r => { S.wk = r; if(S.tab === 'rapor') render_rapor(); }).catch(e => toast(e.message || 'Bağlantı hatası', true)); }
+function rpGo(w){ S.wk = null; wait_(); loadRapor(w); }
+function pctPill(v, lo, hi){ if(v == null) return '<span class="mut">–</span>'; const c = v < lo ? 'warn' : (hi && v > hi) ? 'bad' : 'ok'; return '<span class="pill ' + c + '">%' + v + '</span>'; }
+function render_rapor(){
+  const r = S.wk, z = r.ozet, lbl = fmtD(r.week) + ' – ' + fmtD(r.sun);
+  let h = '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="go(\'ozet\')">‹ Özet</button><button class="btn gh sm" onclick="rpGo(addD(S.wk.week,-7))">‹</button>' +
+    '<div class="sp" style="text-align:center;font-weight:700">📈 ' + esc(lbl) + '</div><button class="btn gh sm" onclick="rpGo(addD(S.wk.week,7))">›</button></div>';
+  if(r.nDays < 7) h += '<div class="card mut" style="background:#fff8e8">Bu hafta henüz bitmedi (' + r.nDays + '/7 gün). Ortalamalar geçen günlere göre.</div>';
+  h += '<div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + z.ogrenci + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + fx(z.ortGun, 1) + '<small>/7</small></b><span>Ort. giriş günü</span></div>' +
+    '<div class="stat"><b>' + (z.antPlan ? z.antYapilan + '/' + z.antPlan : '–') + '</b><span>Antrenman</span></div><div class="stat"><b style="color:var(--' + (z.dikkat.length ? 'warn' : 'ok') + ')">' + z.dikkat.length + '</b><span>Dikkat</span></div></div>';
+  if(z.best) h += '<div class="card" style="background:#f2fbf6"><b>⭐ Haftanın yıldızı: ' + esc(z.best) + '</b></div>';
+  const st = r.students.slice().sort((a, b) => b.flags.length - a.flags.length || a.ad.localeCompare(b.ad, 'tr'));
+  h += st.map(s => {
+    const kd = s.kiloDegisim;
+    return '<div class="card"><div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0;cursor:pointer" onclick="openStu(\'' + s.id + '\')">' + esc(s.ad) + '</h3>' +
+      (s.flags.length ? '<span class="pill ' + (s.flags.length >= 2 ? 'bad' : 'warn') + '">' + s.flags.length + ' uyarı</span>' : '<span class="pill ok">✓ iyi</span>') + '</div>' +
+      '<div class="grid g3" style="margin-bottom:8px">' +
+        '<div class="stat"><b>' + s.gun + '<small>/' + Math.min(r.nDays, 7) + '</small></b><span>Giriş günü</span></div>' +
+        '<div class="stat"><b>' + (s.kcal != null ? s.kcal : '–') + '</b><span>Ort. kcal ' + pctPill(s.kcalPct, 75, 115) + '</span></div>' +
+        '<div class="stat"><b>' + (s.p != null ? s.p + ' g' : '–') + '</b><span>Ort. protein ' + pctPill(s.pPct, 80) + '</span></div>' +
+        '<div class="stat"><b>' + (s.su != null ? fx(s.su / 1000, 1) + ' L' : '–') + '</b><span>Ort. su ' + pctPill(s.suPct, 70) + '</span></div>' +
+        '<div class="stat"><b>' + (s.kilo != null ? fx(s.kilo, 1) : '–') + (kd != null ? ' <small style="color:var(--mut)">(' + (kd > 0 ? '+' : '') + fx(kd, 1) + ')</small>' : '') + '</b><span>Kilo</span></div>' +
+        '<div class="stat"><b>' + (s.antPlan ? s.antYapilan + '/' + s.antPlan : '–') + '</b><span>Antrenman' + (s.km ? ' · ' + fx(s.km, 1) + ' km' : '') + '</span></div>' +
+      '</div>' +
+      (s.planT ? '<div class="mut" style="margin-bottom:6px">🍽 Beslenme planına uyum: <b>' + s.planD + '/' + s.planT + '</b> (%' + Math.round(s.planD / s.planT * 100) + ')</div>' : '') +
+      (s.gun ? weekBars(s.daily, s.targets.kcal) : '') +
+      (s.flags.length ? '<div style="margin-top:6px;color:#b0602a;font-size:13px">⚠️ ' + s.flags.map(esc).join(' · ') + '</div>' : '') +
+      (s.not ? '<div class="mut" style="margin-top:6px;font-size:13px">💬 ' + esc(s.not) + '</div>' : '') + '</div>';
+  }).join('');
+  $('app').innerHTML = h;
 }
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
@@ -787,7 +822,7 @@ function render_ozet(){
   const o = S.ov, act = o.students.filter(s => s.aktif);
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
-  let h = pushCard() + '<div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
+  let h = pushCard() + '<button class="btn sec blk" style="margin-bottom:12px" onclick="go(\'rapor\')">📈 Haftalık rapor</button><div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
