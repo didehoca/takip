@@ -346,6 +346,9 @@ function pushInit(sid){
         welcomeNotification: {title: 'Dide Hoca Personal Training 🥥', message: 'Hoş geldin' + (ad ? ' ' + ad : '') + '! Bildirimlerin açık 💪 Dide Hoca programını, hedeflerini ya da notunu güncellediğinde ilk senin haberin olacak.', url: location.href}});
       await OneSignal.login(String(sid));
       S.push = OneSignal;
+      const reg = () => { try { const ps = OneSignal.User.PushSubscription; if(ps.id && ps.optedIn && S.pushReg !== ps.id){ S.pushReg = ps.id; call('pushSub', {id: ps.id}, true).catch(() => { S.pushReg = null; }); } } catch(e) {} };
+      reg(); setTimeout(reg, 4000);
+      OneSignal.User.PushSubscription.addEventListener('change', reg);
       OneSignal.Notifications.addEventListener('permissionChange', () => { if(S.tab === 'bugun' && idle()) render_bugun(); });
     } catch(e) { console.warn('push', e); }
   });
