@@ -471,22 +471,26 @@ function edSave(id){
 }
 function render_ekle(){
   S.ogun = S.ogun || defOgun();
-  const q = (S.q || '').toLocaleLowerCase('tr');
-  const fl = S.favs.filter(f => !q || f.besin.toLocaleLowerCase('tr').indexOf(q) >= 0);
+  const q = nz(S.q).trim(), ws = q.split(/\s+/);
+  const all = S.favs.filter(f => !q || ws.every(w => nz(f.besin).indexOf(w) >= 0));
+  const srt = all.filter(f => f.own).concat(all.filter(f => !f.own));
+  const lim = q ? 80 : 40, fl = srt.slice(0, lim), more = srt.length - fl.length;
   const sel = S.sel ? S.favs.find(f => f.id === S.sel) : null;
-  const mult = n(S.mult || 1) || 1;
+  const mult = n(S.mult || 1) || 1, sg = sel ? porG(sel.porsiyon) : null;
   $('app').innerHTML = dateNav(S.date, 'loadDay') +
     '<div class="card"><h3>Öğün</h3><div class="tabs" style="flex-wrap:wrap">' + OGUNLER.map(o => '<button class="' + (o === S.ogun ? 'on' : '') + '" onclick="S.ogun=\'' + o + '\';render_ekle()">' + o + '</button>').join('') + '</div>' +
     '<div class="tabs" style="margin:0">' + [['fav','⭐ Sık yediklerim'],['man','✍︎ Elle gir'],['su','💧 Su']].map(t => '<button class="' + ((S.mode || 'fav') === t[0] ? 'on' : '') + '" onclick="S.mode=\'' + t[0] + '\';render_ekle()">' + t[1] + '</button>').join('') + '</div></div>' +
     ((S.mode || 'fav') === 'fav' ?
       (sel ? '<div class="card" style="border-color:var(--pri)"><h3>' + esc(sel.besin) + '</h3><div class="mut">1 porsiyon = ' + esc(sel.porsiyon) + '</div>' +
-        '<div class="row" style="margin:10px 0"><label style="margin:0">Kaç porsiyon?</label>' + [0.5, 1, 1.5, 2, 3].map(m => '<button class="btn ' + (mult === m ? '' : 'gh') + ' sm" onclick="S.mult=' + m + ';render_ekle()">' + String(m).replace('.', ',') + '</button>').join('') +
-        '<input id="mlt" inputmode="decimal" style="width:70px" value="' + String(mult).replace('.', ',') + '" onchange="S.mult=n(this.value);render_ekle()"></div>' +
+        '<div class="row" style="margin:10px 0"><label style="margin:0">Kaç porsiyon?</label>' + [0.5, 1, 1.5, 2, 3].map(m => '<button class="btn ' + (mult === m ? '' : 'gh') + ' sm" onclick="S.mult=' + m + ';S.gram=null;render_ekle()">' + String(m).replace('.', ',') + '</button>').join('') +
+        '<input id="mlt" inputmode="decimal" style="width:70px" value="' + String(Math.round(mult * 100) / 100).replace('.', ',') + '" onchange="S.mult=n(this.value);S.gram=null;render_ekle()"></div>' +
+        (sg ? '<div class="row" style="margin:-4px 0 10px"><label style="margin:0">veya kaç ' + (sg.u === 'ml' ? 'ml' : 'gram') + '?</label><input id="grm" inputmode="decimal" style="width:90px" placeholder="ör. ' + fx(sg.v * 2) + '" value="' + (S.gram ? fx(S.gram, 1) : '') + '" onchange="const g=n(this.value);S.gram=g>0?g:null;S.mult=g>0?g/' + sg.v + ':1;render_ekle()"><span class="mut">' + sg.u + '</span></div>' : '') +
         '<div class="grid g4" style="margin-bottom:10px"><div class="stat"><b>' + fx(sel.kcal * mult) + '</b><span>kcal</span></div><div class="stat"><b>' + fx(sel.p * mult, 1) + '</b><span>Protein</span></div><div class="stat"><b>' + fx(sel.k * mult, 1) + '</b><span>Karb</span></div><div class="stat"><b>' + fx(sel.y * mult, 1) + '</b><span>Yağ</span></div></div>' +
         '<div class="row"><button class="btn gh" onclick="S.sel=null;render_ekle()">Vazgeç</button><button class="btn sp" onclick="addFav()">' + esc(S.ogun) + ' öğününe ekle</button></div></div>' : '') +
-      '<div class="card"><input placeholder="🔎 Ara (ör. yumurta, yulaf)" value="' + esc(S.q || '') + '" oninput="S.q=this.value;clearTimeout(S._qt);S._qt=setTimeout(()=>{render_ekle();const i=document.querySelector(\'#app input[placeholder]\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">' +
-        (fl.length ? fl.map(f => '<div class="fav ' + (S.sel === f.id ? 'on' : '') + '" onclick="S.sel=\'' + f.id + '\';S.mult=1;render_ekle();window.scrollTo(0,0)"><div class="n"><b>' + esc(f.besin) + '</b>' + (f.own ? ' <span class="pill ok">benim</span>' : '') + '<div class="mut">' + esc(f.porsiyon) + ' · ' + fx(f.kcal) + ' kcal · P ' + fx(f.p, 1) + ' · K ' + fx(f.k, 1) + ' · Y ' + fx(f.y, 1) + '</div></div>' +
-          (f.own ? '<button class="x" onclick="event.stopPropagation();delFav(\'' + f.id + '\')">✕</button>' : '') + '</div>').join('') : '<div class="empty">Bulunamadı. <a href="#" onclick="S.mode=\'man\';render_ekle();return false">Elle gir</a></div>') + '</div>'
+      '<div class="card"><input placeholder="🔎 270+ besin içinde ara (ör. simit, canga)" value="' + esc(S.q || '') + '" oninput="S.q=this.value;clearTimeout(S._qt);S._qt=setTimeout(()=>{render_ekle();const i=document.querySelector(\'#app input[placeholder]\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">' +
+        (fl.length ? fl.map(f => '<div class="fav ' + (S.sel === f.id ? 'on' : '') + '" onclick="S.sel=\'' + f.id + '\';S.mult=1;S.gram=null;render_ekle();window.scrollTo(0,0)"><div class="n"><b>' + esc(f.besin) + '</b>' + (f.own ? ' <span class="pill ok">benim</span>' : '') + '<div class="mut">' + esc(f.porsiyon) + ' · ' + fx(f.kcal) + ' kcal · P ' + fx(f.p, 1) + ' · K ' + fx(f.k, 1) + ' · Y ' + fx(f.y, 1) + '</div></div>' +
+          (f.own ? '<button class="x" onclick="event.stopPropagation();delFav(\'' + f.id + '\')">✕</button>' : '') + '</div>').join('') +
+          (more > 0 ? '<div class="mut" style="text-align:center;padding:10px 0 2px;font-size:13px">' + more + ' besin daha var · aramak için yukarıya yaz</div>' : '') : '<div class="empty">Bulunamadı. <a href="#" onclick="S.mode=\'man\';render_ekle();return false">Elle gir</a></div>') + '</div>'
     : (S.mode === 'man') ?
       '<div class="card"><h3>Elle gir</h3><div class="mut" style="margin-bottom:10px">Değerleri bilmiyorsan yapay zekaya "şu kadar … kaç kalori, protein, karbonhidrat, yağ?" diye sorup buraya yazabilirsin.</div>' +
         '<div class="f"><label>Besin</label><input id="m_b" placeholder="ör. Tavuk göğsü ızgara"></div>' +
@@ -498,11 +502,14 @@ function render_ekle(){
         '<div class="row"><input id="su_ml" inputmode="numeric" placeholder="Başka miktar (ml)" class="sp" style="width:auto"><button class="btn" onclick="const v=n(val(\'su_ml\'));if(v>0)addSu(Math.round(v))">Ekle</button></div>' +
         '<div class="mut" style="margin-top:10px">Bugün: <b>' + fx(S.day.totals.su) + '</b>' + (S.day.targets.su ? ' / ' + fx(S.day.targets.su) : '') + ' ml</div></div>');
 }
+function nz(s){ return String(s || '').toLocaleLowerCase('tr').replace(/[çğıöşüâî]/g, c => ({'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i'})[c]); }
+function porG(p){ const m = String(p || '').match(/(\d+(?:[.,]\d+)?)\s*(g|gr|ml)\b/i); return m && n(m[1]) > 0 ? {v: n(m[1]), u: m[2].toLowerCase() === 'ml' ? 'ml' : 'g'} : null; }
 function addFav(){
   const f = S.favs.find(x => x.id === S.sel), m = n(S.mult || 1) || 1; if(!f || S.day.loading) return;
-  const e = {ogun: S.ogun, besin: f.besin, miktar: (m === 1 ? '' : String(m).replace('.', ',') + ' × ') + f.porsiyon,
+  const sg = porG(f.porsiyon);
+  const e = {ogun: S.ogun, besin: f.besin, miktar: S.gram && sg ? fx(S.gram, 1) + ' ' + sg.u : (m === 1 ? '' : String(Math.round(m * 100) / 100).replace('.', ',') + ' × ') + f.porsiyon,
     kcal: Math.round(f.kcal * m * 10) / 10, p: Math.round(f.p * m * 10) / 10, k: Math.round(f.k * m * 10) / 10, y: Math.round(f.y * m * 10) / 10};
-  addLocal(e); S.sel = null; toast('✓ ' + f.besin + ' eklendi'); render_ekle();
+  addLocal(e); S.sel = null; S.gram = null; toast('✓ ' + f.besin + ' eklendi'); render_ekle();
   sync('addEntry', Object.assign({date: S.date}, e), applyDay);
 }
 function addMan(){
@@ -987,6 +994,11 @@ function render_ayar(){
   const st = S.set;
   $('app').innerHTML = '<div class="card"><h3>➕ Yeni öğrenci</h3><div class="row"><input id="ns" class="sp" style="width:auto" placeholder="Ad Soyad"><button class="btn" onclick="addStu()">Ekle</button></div><div id="nsres"></div></div>' +
     '<div class="card"><h3>Öğrenciler</h3>' + S.ov.students.map(s => '<div class="warnli" onclick="S.dt=\'hedef\';openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b>' + (s.aktif ? '<span class="pill ok">aktif</span>' : '<span class="pill bad">pasif</span>') + '</div><div class="mut">' + (s.targets.kcal ? s.targets.kcal + ' kcal · P ' + s.targets.p + ' · K ' + s.targets.k + ' · Y ' + s.targets.y : 'Hedef girilmedi') + ' · link ve hedefler için dokun</div></div>').join('') + '</div>' +
+    '<div class="card"><div class="row"><h3 class="sp" style="margin:0">🔔 Otomatik hatırlatmalar</h3><label style="display:flex;gap:8px;align-items:center;margin:0;cursor:pointer"><input type="checkbox" style="width:auto" ' + (st.hatirlatma ? 'checked' : '') + ' onchange="saveRem(this.checked)"> ' + (st.hatirlatma ? 'Açık' : 'Kapalı') + '</label></div>' +
+      '<div class="mut" style="margin-top:8px;font-size:13px;line-height:1.6">Bildirimleri açık öğrencilere, gerektiğinde ve her biri günde en fazla bir kez:<br>' +
+      '• <b>09:00</b> antrenman günüyse programı hatırlatır<br>• <b>14:00</b> hiç yemek girmediyse hatırlatır<br>• <b>16:00</b> su hedefinin %40\'ının altındaysa su hatırlatır<br>' +
+      '• <b>20:00</b> antrenman günü sonuç girmediyse hatırlatır<br>• <b>21:00</b> gün boyu hiçbir şey girmediyse hatırlatır<br>• <b>Pazartesi 10:00</b> ölçüm zamanı geldiyse hatırlatır<br>' +
+      '• <b>22:00</b> sana günün özetini gönderir (kim girdi, kim girmedi)</div></div>' +
     '<div class="card"><h3>⚠️ Uyarı eşikleri</h3><div class="grid g2">' +
     [['esik_giris_gun','Kaç gün giriş yoksa uyar'],['esik_olcum_gun','Kaç gün ölçüm yoksa uyar'],['esik_kalori_ust','Kalori üst sınır (% hedef)'],['esik_kalori_alt','Kalori alt sınır (% hedef)'],['esik_protein_alt','Protein alt sınır (% hedef)'],['esik_su_alt','Su alt sınır (% hedef)']]
       .map(x => '<div class="f"><label>' + x[1] + '</label><input id="e_' + x[0] + '" inputmode="numeric" value="' + st[x[0]] + '"></div>').join('') +
@@ -999,6 +1011,9 @@ function addStu(){
     $('nsres').innerHTML = '<div style="margin-top:10px"><div class="mut">✓ ' + esc(r.ad) + ' eklendi. Linki:</div><div class="link" id="nlink">' + esc(r.link) + '</div><div class="row" style="margin-top:6px"><button class="btn sec sm" onclick="cp(\'nlink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent('Merhaba! Beslenme ve antrenman takip sayfan: ' + r.link) + '">WhatsApp</a></div><div class="mut" style="margin-top:6px">Hedeflerini Öğrenci → Hedefler & link kısmından girebilirsin.</div></div>';
     call('overview').then(o => { S.ov = o; });
   });
+}
+function saveRem(on){
+  call('saveSettings', {hatirlatma: on}).then(r => { S.set = r; toast(on ? '🔔 Hatırlatmalar açık' : 'Hatırlatmalar kapatıldı'); render_ayar(); });
 }
 function saveSet(){
   const p = {}; ['esik_giris_gun','esik_olcum_gun','esik_kalori_ust','esik_kalori_alt','esik_protein_alt','esik_su_alt'].forEach(k => p[k] = val('e_' + k));
