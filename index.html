@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <link rel="icon" type="image/png" href="favicon.png">
 <style>
 :root{
@@ -95,6 +96,8 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .warnli:first-child{border-top:0}
 .link{word-break:break-all;font-size:12px;background:#f7f2f5;border-radius:10px;padding:8px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
+.push{background:linear-gradient(135deg,#fff4f8,#f3efff);border-color:#f0d6e2}
+.push b{display:block;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -104,6 +107,7 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 <div id="ld" class="load" style="display:none"></div>
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxGMEt14iQj3emunOssy-8UbOUJ8nr3xkw9y19AwwFhfbJvh7Y9fpJV0zKbddVjAVR7nA/exec';
+const OS_APP = '5a5e1fa7-3a89-40ff-9521-5d84479132d7';
 const TOKEN = (function(){
   let t = (new URLSearchParams(location.search).get('t') || '').trim();
   try { if(t) localStorage.setItem('dh_t', t); else t = localStorage.getItem('dh_t') || ''; } catch(e) {}
@@ -312,8 +316,42 @@ function sync(action, params, apply){
     });
 }
 const applyDay = r => { if(r.day.date === S.date) S.day = r.day; S.favs = r.favs; };
+/* --- telefon bildirimleri (OneSignal) --- */
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+const pushOn = () => OS_APP && OS_APP.indexOf('ONESIGNAL') < 0;
+function pushInit(sid){
+  if(!pushOn() || pushInit.done) return; pushInit.done = true;
+  OneSignalDeferred.push(async function(OneSignal){
+    try {
+      await OneSignal.init({appId: OS_APP, safari_web_id: 'web.onesignal.auto.514888af-c9d7-482b-90d4-9de98d872128', serviceWorkerPath: 'takip/OneSignalSDKWorker.js', serviceWorkerParam: {scope: '/takip/'}});
+      await OneSignal.login(String(sid));
+      S.push = OneSignal;
+      OneSignal.Notifications.addEventListener('permissionChange', () => { if(S.tab === 'bugun' && idle()) render_bugun(); });
+    } catch(e) { console.warn('push', e); }
+  });
+}
+function pushCard(){
+  if(!pushOn()) return '';
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent), alone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  const sup = 'Notification' in window && 'serviceWorker' in navigator;
+  if(sup && Notification.permission === 'granted') return '';
+  try { if(Number(localStorage.getItem('dh_pl') || 0) > Date.now()) return ''; } catch(e) {}
+  const later = '<button class="btn gh sm" onclick="pushLater()">Sonra</button>';
+  if(ios && !alone) return '<div class="card push"><b>🔔 Dide Hoca\'dan bildirim almak için</b><div class="mut">Önce bu sayfayı ana ekrana ekle: Safari\'de Paylaş → <b>Ana Ekrana Ekle</b>. Sonra ana ekrandaki ikondan açıp bildirimleri aç.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
+  if(!sup) return '';
+  if(Notification.permission === 'denied') return '<div class="card push"><b>🔕 Bildirimler kapalı</b><div class="mut">Program ya da hedeflerin değişince haber alabilmek için telefon ayarlarından bu uygulamanın bildirimlerine izin ver.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
+  return '<div class="card push"><b>🔔 Bildirimleri aç</b><div class="mut">Dide Hoca programını, hedeflerini ya da notunu değiştirdiğinde telefonuna anında bildirim gelsin.</div><div class="row" style="margin-top:10px"><button class="btn sp" onclick="pushAsk()">Bildirimleri aç</button>' + later + '</div></div>';
+}
+function pushAsk(){
+  if(!S.push){ toast('Bir saniye, hazırlanıyor… tekrar dokun'); return; }
+  S.push.Notifications.requestPermission().then(() => {
+    setTimeout(() => { if(S.tab === 'bugun') render_bugun(); if(window.Notification && Notification.permission === 'granted') toast('🔔 Bildirimler açık'); }, 600);
+  });
+}
+function pushLater(){ try { localStorage.setItem('dh_pl', String(Date.now() + 3 * 86400000)); } catch(e) {} render_bugun(); }
 function stBoot(r){
   S.name = r.name; S.day = r.day; S.favs = r.favs; S.date = r.day.date;
+  if(r.id) pushInit(r.id);
   $('sub').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋';
 }
 function stInit(r){
@@ -327,7 +365,7 @@ function loadDay(d){
 }
 function render_bugun(){
   const d = S.day;
-  $('app').innerHTML = dateNav(d.date, 'loadDay') + noTargets(d.targets) +
+  $('app').innerHTML = pushCard() + dateNav(d.date, 'loadDay') + noTargets(d.targets) +
     '<div class="card">' + rings(d.totals, d.targets) + '</div>' +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
     '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
@@ -649,7 +687,7 @@ function render_det(){
 function macroChk(){ const mk = n(val('t_p')) * 4 + n(val('t_k')) * 4 + n(val('t_y')) * 9, kc = n(val('t_kcal')); $('mchk').innerHTML = mk ? 'Makrolardan hesaplanan: <b>' + Math.round(mk) + ' kcal</b>' + (kc ? ' (girilen ' + kc + ', fark ' + Math.round(mk - kc) + ')' : '') : ''; }
 function saveTg(){
   call('saveTargets', {sid: S.sid, kcal: val('t_kcal'), p: val('t_p'), k: val('t_k'), y: val('t_y'), su: val('t_su'), amac: val('t_amac'), hedefKilo: val('t_hk')})
-    .then(r => { S.det = r; toast('✓ Hedefler kaydedildi'); render_det(); call('overview').then(o => S.ov = o); });
+    .then(r => { S.det = r; toast('✓ Hedefler kaydedildi' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_det(); call('overview').then(o => S.ov = o); });
 }
 function setAct(a){ call('setActive', {sid: S.sid, aktif: a}).then(r => { S.det = r; render_det(); call('overview').then(o => S.ov = o); }); }
 function cp(id){
@@ -677,7 +715,7 @@ function render_cprog(){
         '</div>'; }).join('') + '</div>';
   }
   h += '<div style="position:sticky;bottom:72px;z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
-  h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\')})">Notu kaydet</button></div>';
+  h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\'+(r.notified?\' · 🔔 öğrenciye bildirim gitti\':\'\'))})">Notu kaydet</button></div>';
   h += '<div class="card" style="background:#fff8f1"><h3>💬 Öğrencinin haftalık notu</h3>' + (p.ogrenciNotu ? esc(p.ogrenciNotu).replace(/\n/g, '<br>') : '<span class="mut">Henüz not yok</span>') +
     '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
   $('app').innerHTML = h;
@@ -704,9 +742,9 @@ function mv(i, d){
 }
 function saveProg(){
   call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
-    .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi'); render_cprog(); });
+    .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_cprog(); });
 }
-function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı'); render_cprog(); }); }
+function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı' + (r.notified ? ' · 🔔 öğrenciye bildirim gitti' : '')); render_cprog(); }); }
 function render_ayar(){
   const st = S.set;
   $('app').innerHTML = '<div class="card"><h3>➕ Yeni öğrenci</h3><div class="row"><input id="ns" class="sp" style="width:auto" placeholder="Ad Soyad"><button class="btn" onclick="addStu()">Ekle</button></div><div id="nsres"></div></div>' +
