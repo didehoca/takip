@@ -342,14 +342,16 @@ function pushInit(sid){
   OneSignalDeferred.push(async function(OneSignal){
     try {
       const ad = String(S.name || '').split(' ')[0];
+      const msg = ROLE === 'coach' ? 'Hoş geldin Dide Hoca! Bildirimler açık 🔔 Öğrencilerin yemek, su, ölçüm ya da antrenman girdiğinde ilk senin haberin olacak.'
+        : 'Hoş geldin' + (ad ? ' ' + ad : '') + '! Bildirimlerin açık 💪 Dide Hoca programını, hedeflerini ya da notunu güncellediğinde ilk senin haberin olacak.';
       await OneSignal.init({appId: OS_APP, safari_web_id: 'web.onesignal.auto.514888af-c9d7-482b-90d4-9de98d872128', serviceWorkerPath: 'takip/OneSignalSDKWorker.js', serviceWorkerParam: {scope: '/takip/'},
-        welcomeNotification: {title: 'Dide Hoca Personal Training 🥥', message: 'Hoş geldin' + (ad ? ' ' + ad : '') + '! Bildirimlerin açık 💪 Dide Hoca programını, hedeflerini ya da notunu güncellediğinde ilk senin haberin olacak.', url: location.href}});
+        welcomeNotification: {title: 'Dide Hoca Personal Training 🥥', message: msg, url: location.href}});
       await OneSignal.login(String(sid));
       S.push = OneSignal;
       const reg = () => { try { const ps = OneSignal.User.PushSubscription; if(ps.id && ps.optedIn && S.pushReg !== ps.id){ S.pushReg = ps.id; call('pushSub', {id: ps.id}, true).catch(() => { S.pushReg = null; }); } } catch(e) {} };
       reg(); setTimeout(reg, 4000);
       OneSignal.User.PushSubscription.addEventListener('change', reg);
-      OneSignal.Notifications.addEventListener('permissionChange', () => { if(S.tab === 'bugun' && idle()) render_bugun(); });
+      OneSignal.Notifications.addEventListener('permissionChange', () => { if(idle()) pushRe(); });
     } catch(e) { console.warn('push', e); }
   });
 }
@@ -360,6 +362,12 @@ function pushCard(){
   if(sup && Notification.permission === 'granted') return '';
   try { if(Number(localStorage.getItem('dh_pl') || 0) > Date.now()) return ''; } catch(e) {}
   const later = '<button class="btn gh sm" onclick="pushLater()">Sonra</button>';
+  if(ROLE === 'coach'){
+    if(ios && !alone) return '<div class="card push"><b>🔔 Öğrenci bildirimlerini almak için</b><div class="mut">Önce bu paneli ana ekrana ekle: Safari\'de Paylaş → <b>Ana Ekrana Ekle</b>. Sonra ana ekrandaki ikondan açıp bildirimleri aç.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
+    if(!sup) return '';
+    if(Notification.permission === 'denied') return '<div class="card push"><b>🔕 Bildirimler kapalı</b><div class="mut">Öğrencilerin girişlerinden haber alabilmek için telefon ayarlarından bu uygulamanın bildirimlerine izin ver.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
+    return '<div class="card push"><b>🔔 Öğrenci bildirimlerini aç</b><div class="mut">Öğrencilerin yemek, su, ölçüm, antrenman ya da not girdiğinde telefonuna anında bildirim gelsin.</div><div class="row" style="margin-top:10px"><button class="btn sp" onclick="pushAsk()">Bildirimleri aç</button>' + later + '</div></div>';
+  }
   if(ios && !alone) return '<div class="card push"><b>🔔 Dide Hoca\'dan bildirim almak için</b><div class="mut">Önce bu sayfayı ana ekrana ekle: Safari\'de Paylaş → <b>Ana Ekrana Ekle</b>. Sonra ana ekrandaki ikondan açıp bildirimleri aç.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
   if(!sup) return '';
   if(Notification.permission === 'denied') return '<div class="card push"><b>🔕 Bildirimler kapalı</b><div class="mut">Program ya da hedeflerin değişince haber alabilmek için telefon ayarlarından bu uygulamanın bildirimlerine izin ver.</div><div class="row" style="margin-top:8px">' + later + '</div></div>';
@@ -368,10 +376,11 @@ function pushCard(){
 function pushAsk(){
   if(!S.push){ toast('Bir saniye, hazırlanıyor… tekrar dokun'); return; }
   S.push.Notifications.requestPermission().then(() => {
-    setTimeout(() => { if(S.tab === 'bugun') render_bugun(); if(window.Notification && Notification.permission === 'granted') toast('🔔 Bildirimler açık'); }, 600);
+    setTimeout(() => { pushRe(); if(window.Notification && Notification.permission === 'granted') toast('🔔 Bildirimler açık'); }, 600);
   });
 }
-function pushLater(){ try { localStorage.setItem('dh_pl', String(Date.now() + 3 * 86400000)); } catch(e) {} render_bugun(); }
+function pushLater(){ try { localStorage.setItem('dh_pl', String(Date.now() + 3 * 86400000)); } catch(e) {} pushRe(); }
+function pushRe(){ if(ROLE === 'coach'){ if(S.tab === 'ozet') render_ozet(); } else if(S.tab === 'bugun') render_bugun(); }
 function stBoot(r){
   S.name = r.name; S.day = r.day; S.favs = r.favs; S.date = r.day.date;
   if(r.id) pushInit(r.id);
@@ -711,6 +720,7 @@ function cInit(r){
   $('sub').textContent = 'Antrenör Paneli';
   setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['ayarlar','⚙︎','Ayarlar']]);
   S.ov = r; S.ovTs = Date.now(); go('ozet');
+  pushInit('coach');
 }
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
@@ -720,7 +730,7 @@ function render_ozet(){
   const o = S.ov, act = o.students.filter(s => s.aktif);
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
-  let h = '<div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
+  let h = pushCard() + '<div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
