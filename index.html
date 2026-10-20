@@ -59,6 +59,9 @@ label{display:block;font-size:12px;color:var(--mut);margin:0 0 4px}
 .ent{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px dashed var(--line)}
 .ent:first-of-type{border-top:0}
 .ent .n{flex:1;min-width:0}
+.ent .n.ed{cursor:pointer}
+.edf{background:#fff;border-radius:12px;padding:10px;margin:6px 0;box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.edf .f{margin-bottom:8px}.edf label{font-size:12px}
 .ent .n div:first-child{font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .og{border-radius:14px;padding:10px 12px;margin-bottom:10px}
 .og h4{margin:0 0 4px;font-size:14px;display:flex;justify-content:space-between}
@@ -249,10 +252,10 @@ function entriesView(day, readonly){
     const es = day.entries.filter(e => (e.ogun || '') === o); if(!es.length) return '';
     const k = es.reduce((a, e) => a + e.kcal, 0), su = es.reduce((a, e) => a + e.su, 0);
     return '<div class="og" style="background:' + (OG_RENK[o] || '#f6f2f4') + '"><h4><span>' + esc(o || 'Diğer') + '</span><span class="mut">' + (o === 'Su' ? su + ' ml' : Math.round(k) + ' kcal') + '</span></h4>' +
-      es.map(e => '<div class="ent"><div class="n"><div>' + esc(e.besin) + '</div><div class="mut">' + esc(e.miktar) +
+      es.map(e => !readonly && S.edit === e.id ? edForm(e) : '<div class="ent"><div class="n' + (readonly ? '' : ' ed" title="Düzenlemek için dokun" onclick="edEntry(\'' + e.id + '\')') + '"><div>' + esc(e.besin) + '</div><div class="mut">' + esc(e.miktar) +
         (o === 'Su' ? '' : ' · ' + fx(e.kcal) + ' kcal · P ' + fx(e.p, 1) + ' · K ' + fx(e.k, 1) + ' · Y ' + fx(e.y, 1)) +
         (e.su && o !== 'Su' ? ' · ' + e.su + ' ml su' : '') + '</div></div>' +
-        (readonly ? '' : '<button class="x" title="Sil" onclick="delEntry(\'' + e.id + '\')">✕</button>') + '</div>').join('') + '</div>';
+        (readonly ? '' : '<button class="x" title="Düzenle" onclick="edEntry(\'' + e.id + '\')">✎</button><button class="x" title="Sil" onclick="delEntry(\'' + e.id + '\')">✕</button>') + '</div>').join('') + '</div>';
   }).join('');
 }
 function noTargets(tg){ return !tg.kcal ? '<div class="card mut" style="background:#fff8e8">Hedeflerin henüz girilmemiş. Antrenörün girdiğinde halkalar yüzde olarak dolacak.</div>' : ''; }
@@ -418,6 +421,53 @@ function delEntry(id){
   S.day.entries = S.day.entries.filter(e => e.id !== id); recalc(S.day);
   toast('Silindi'); render_bugun();
   sync('deleteEntry', {id, date: S.date}, r => { if(r.date === S.date) S.day = r; });
+}
+/* --- girişi yerinde düzenleme --- */
+function edEntry(id){
+  if(String(id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra düzenleyebilirsin'); return; }
+  const e = S.day.entries.find(x => x.id === id); if(!e) return;
+  S.edit = id; S.edOrig = {miktar: e.miktar, kcal: n(e.kcal), p: n(e.p), k: n(e.k), y: n(e.y)};
+  render_bugun();
+  const f = $(e.ogun === 'Su' ? 'e_su' : 'e_m'); if(f){ f.focus(); try { f.select(); } catch(err) {} }
+}
+function edCancel(){ S.edit = null; S.edOrig = null; render_bugun(); }
+function edForm(e){
+  const btns = '<div class="row"><button class="btn sp" onclick="edSave(\'' + e.id + '\')">Kaydet</button><button class="btn gh" onclick="edCancel()">Vazgeç</button></div>';
+  const v = x => String(x == null ? '' : x).replace('.', ',');
+  if(e.ogun === 'Su') return '<div class="edf"><div class="f"><label>Su (ml)</label><input id="e_su" inputmode="numeric" value="' + esc(e.su) + '"></div>' + btns + '</div>';
+  const ogs = OGUNLER.indexOf(e.ogun) < 0 ? OGUNLER.concat([e.ogun]) : OGUNLER;
+  return '<div class="edf">' +
+    '<div class="grid g2"><div class="f"><label>Besin</label><input id="e_b" value="' + esc(e.besin) + '"></div>' +
+    '<div class="f"><label>Miktar</label><input id="e_m" value="' + esc(e.miktar) + '" oninput="edScale()"></div></div>' +
+    '<div class="grid g4"><div class="f"><label>Kalori</label><input id="e_kcal" inputmode="decimal" value="' + v(e.kcal) + '"></div><div class="f"><label>Protein g</label><input id="e_p" inputmode="decimal" value="' + v(e.p) + '"></div>' +
+    '<div class="f"><label>Karb g</label><input id="e_k" inputmode="decimal" value="' + v(e.k) + '"></div><div class="f"><label>Yağ g</label><input id="e_y" inputmode="decimal" value="' + v(e.y) + '"></div></div>' +
+    '<div class="f"><label>Öğün</label><select id="e_o">' + ogs.map(o => '<option' + (o === e.ogun ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></div>' +
+    '<div class="mut" style="font-size:12px;margin:-2px 0 8px">Miktarı değiştirince (ör. 45g → 90g) kalori ve makrolar otomatik orantılanır.</div>' + btns + '</div>';
+}
+function amtNum(s){ const m = String(s || '').replace(',', '.').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; }
+function amtUnit(s){ return String(s || '').replace(/[\d.,\s]+/, '').trim().toLocaleLowerCase('tr'); }
+function edScale(){
+  const o = S.edOrig, nm = $('e_m') ? $('e_m').value : ''; if(!o) return;
+  const a = amtNum(o.miktar), b = amtNum(nm);
+  if(!(a > 0 && b > 0) || amtUnit(o.miktar) !== amtUnit(nm)) return;
+  ['kcal', 'p', 'k', 'y'].forEach(k => { $('e_' + k).value = String(Math.round(o[k] * b / a * 10) / 10).replace('.', ','); });
+}
+function edSave(id){
+  const e = S.day.entries.find(x => x.id === id); if(!e){ edCancel(); return; }
+  const val = k => $('e_' + k).value;
+  let p;
+  if(e.ogun === 'Su'){
+    const ml = Math.round(n(val('su'))); if(!(ml > 0)){ toast('Geçerli bir ml gir', true); return; }
+    p = {su: ml}; Object.assign(e, {su: ml, miktar: ml + ' ml'});
+  } else {
+    const b = val('b').trim(); if(!b){ toast('Besin adı boş olamaz', true); return; }
+    p = {besin: b, miktar: val('m').trim(), ogun: val('o'), kcal: n(val('kcal')), p: n(val('p')), k: n(val('k')), y: n(val('y'))};
+    Object.assign(e, p);
+  }
+  S.edit = null; S.edOrig = null; recalc(S.day);
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  toast('✓ Güncellendi'); render_bugun();
+  sync('editEntry', Object.assign({id, date: S.date}, p), r => { if(r.date === S.date) S.day = r; });
 }
 function render_ekle(){
   S.ogun = S.ogun || defOgun();
