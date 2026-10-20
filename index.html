@@ -323,7 +323,9 @@ function pushInit(sid){
   if(!pushOn() || pushInit.done) return; pushInit.done = true;
   OneSignalDeferred.push(async function(OneSignal){
     try {
-      await OneSignal.init({appId: OS_APP, safari_web_id: 'web.onesignal.auto.514888af-c9d7-482b-90d4-9de98d872128', serviceWorkerPath: 'takip/OneSignalSDKWorker.js', serviceWorkerParam: {scope: '/takip/'}});
+      const ad = String(S.name || '').split(' ')[0];
+      await OneSignal.init({appId: OS_APP, safari_web_id: 'web.onesignal.auto.514888af-c9d7-482b-90d4-9de98d872128', serviceWorkerPath: 'takip/OneSignalSDKWorker.js', serviceWorkerParam: {scope: '/takip/'},
+        welcomeNotification: {title: 'Dide Hoca Personal Training 🥥', message: 'Hoş geldin' + (ad ? ' ' + ad : '') + '! Bildirimlerin açık 💪 Dide Hoca programını, hedeflerini ya da notunu güncellediğinde ilk senin haberin olacak.', url: location.href}});
       await OneSignal.login(String(sid));
       S.push = OneSignal;
       OneSignal.Notifications.addEventListener('permissionChange', () => { if(S.tab === 'bugun' && idle()) render_bugun(); });
