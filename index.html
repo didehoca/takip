@@ -44,6 +44,10 @@ nav button.on{color:var(--pri);background:var(--pri2)}
 .mut{color:var(--mut);font-size:13px}
 .grid{display:grid;gap:10px}
 .grid>*{min-width:0}
+.exsel{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:15px;color:var(--ink);cursor:pointer;min-width:0}
+.exsel b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pkit{display:flex;justify-content:space-between;align-items:center;padding:11px 6px;border-bottom:1px dashed var(--line);cursor:pointer}
+.pkit.on{background:var(--pri2);border-radius:10px}
 .f input[type=date]{min-width:0;max-width:100%;width:100%;display:block;-webkit-appearance:none;appearance:none;min-height:44px;text-align:left}
 .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
 @media(max-width:520px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr 1fr}}
@@ -612,6 +616,7 @@ function render_ant(){
       (saved && !dirty ? '<span class="pill ok">✓ kaydedildi</span>' : '<button class="btn gh sm" onclick="fillPlan(' + g + ')">Programdaki gibi doldur</button>') + '</div>' + rs.map(r => r.tur === 'kosu' ? runCard(r, fv, isD) :
       '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (r.yapilan_set !== '' && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
       '<div class="coach">🎯 ' + esc(r.set || '–') + ' set × ' + esc(r.tekrar || '–') + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
+      (r.alternatif ? '<div class="mut" style="font-size:13px;margin-top:2px">↺ Yapamazsan alternatif: <b>' + esc(r.alternatif) + '</b></div>' : '') +
       '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + r.id + '" inputmode="numeric" value="' + esc(fv(r, 'yapilan_set')) + '" oninput="dr(\'' + r.id + '\',\'yapilan_set\',this.value)"></div><div class="f"><label>Tekrar</label><input id="yt_' + r.id + '" value="' + esc(fv(r, 'yapilan_tekrar')) + '" placeholder="12,10,8" oninput="dr(\'' + r.id + '\',\'yapilan_tekrar\',this.value)"></div><div class="f"><label>Ağırlık</label><input id="ya_' + r.id + '" value="' + esc(fv(r, 'agirlik')) + '" placeholder="kg" oninput="dr(\'' + r.id + '\',\'agirlik\',this.value)"></div></div>' +
       '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + r.id, fv(r, 'zorluk')) +
       '<div class="f" style="margin-top:8px;margin-bottom:0"><input id="yn_' + r.id + '" value="' + esc(fv(r, 'ogrenci_notu')) + '" placeholder="Notun (ör. son sette zorlandım)" oninput="dr(\'' + r.id + '\',\'ogrenci_notu\',this.value)"></div></div>').join('') +
@@ -1080,13 +1085,15 @@ function render_cprog(){
   for(let g = 1; g <= 7; g++){
     const idx = S.edit.map((r, i) => r.gun === g ? i : -1).filter(i => i >= 0);
     h += '<div class="card day"><div class="row"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3><div class="row" style="gap:6px"><button class="btn sec sm" onclick="addEx(' + g + ')">＋ Hareket</button><button class="btn sm" style="background:#d9f3ee;color:#1f7a6a" onclick="addEx(' + g + ',\'kosu\')">＋ Koşu</button></div></div>' +
-      idx.map(i => { const r = S.edit[i]; if(r.tur === 'kosu') return runEd(r, i); return '<div class="ex" style="margin-top:8px"><div class="row"><input class="sp" style="width:auto" placeholder="Egzersiz (ör. Squat)" value="' + esc(r.egzersiz) + '" oninput="ed(' + i + ',\'egzersiz\',this.value)"><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
+      idx.map(i => { const r = S.edit[i]; if(r.tur === 'kosu') return runEd(r, i); return '<div class="ex" style="margin-top:8px"><div class="row"><button class="exsel sp" onclick="exPick(' + i + ')">' + (r.egzersiz ? '<b>' + esc(r.egzersiz) + '</b>' : '<span class="mut">＋ Hareket seç</span>') + '<span class="mut">▾</span></button><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
         '<div class="grid g3" style="margin-top:6px"><div><label>Set</label><input inputmode="numeric" value="' + esc(r.set) + '" oninput="ed(' + i + ',\'set\',this.value)"></div><div><label>Tekrar</label><input value="' + esc(r.tekrar) + '" placeholder="10-12" oninput="ed(' + i + ',\'tekrar\',this.value)"></div><div><label>Sıra</label><div class="row" style="gap:4px"><button class="btn gh sm" onclick="mv(' + i + ',-1)">↑</button><button class="btn gh sm" onclick="mv(' + i + ',1)">↓</button></div></div></div>' +
         '<div style="margin-top:6px"><input placeholder="Not (ör. tempo 3-1-1, 90 sn dinlenme)" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
+        '<div style="margin-top:6px"><input list="exlist" placeholder="↺ Alternatif (yapamazsa, isteğe bağlı)" value="' + esc(r.alternatif || '') + '" oninput="ed(' + i + ',\'alternatif\',this.value)"></div>' +
         (r.yapilan_set !== undefined && (r.yapilan_set || r.agirlik || r.zorluk || r.ogrenci_notu) ? '<div class="stu">🏋️ Öğrenci: ' + esc(r.yapilan_set || '–') + ' set · ' + esc(r.yapilan_tekrar || '–') + ' tekrar · ' + esc(r.agirlik || '–') + (r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '') + (r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '') + '</div>' : '') +
         '</div>'; }).join('') + '</div>';
   }
-  h += '<div style="position:sticky;bottom:72px;z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
+  h += '<datalist id="exlist">' + exAll().map(x => '<option value="' + esc(x[1]) + '">').join('') + '</datalist>';
+  h += '<div style="position:sticky;bottom:calc(96px + env(safe-area-inset-bottom));z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
   h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\'+nTxt(r))})">Notu kaydet</button></div>';
   h += '<div class="card" style="background:#fff8f1"><h3>💬 Öğrencinin haftalık notu</h3>' + (p.ogrenciNotu ? esc(p.ogrenciNotu).replace(/\n/g, '<br>') : '<span class="mut">Henüz not yok</span>') +
     '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
@@ -1097,7 +1104,7 @@ function confirmLike(){ if(S._dc){ S._dc = false; return true; } S._dc = true; t
 function chgProgStu(id){ if(!guardDirty()){ render_cprog(); return; } loadCProg(S.cprog.week, id); }
 function chgProgWeek(w){ if(!guardDirty()) return; loadCProg(w); }
 function ed(i, k, v){ S.edit[i][k] = v; if(!S.dirty){ S.dirty = true; const b = document.querySelector('#app .btn.blk[onclick="saveProg()"]'); if(b) b.textContent = '💾 Programı kaydet (değişiklik var)'; } }
-function addEx(g, tur){ S.edit.push({gun: g, tur: tur === 'kosu' ? 'kosu' : 'kuvvet', egzersiz: '', set: '', tekrar: '', antrenor_notu: '', kosu_tipi: tur === 'kosu' ? 'Easy run' : '', hedef_km: '', hedef_pace: ''}); S.dirty = true; render_cprog(); }
+function addEx(g, tur){ S.edit.push({gun: g, tur: tur === 'kosu' ? 'kosu' : 'kuvvet', egzersiz: '', set: '', tekrar: '', antrenor_notu: '', alternatif: '', kosu_tipi: tur === 'kosu' ? 'Easy run' : '', hedef_km: '', hedef_pace: ''}); S.dirty = true; render_cprog(); if(tur !== 'kosu') exPick(S.edit.length - 1, true); }
 function runEd(r, i){
   const tip = r.kosu_tipi || 'Easy run', opts = KOSU.indexOf(tip) < 0 ? KOSU.concat([tip]) : KOSU;
   return '<div class="ex run" style="margin-top:8px"><div class="row"><span style="font-size:18px">🏃</span><select class="sp" style="width:auto;font-weight:600" onchange="ed(' + i + ',\'kosu_tipi\',this.value)">' +
@@ -1107,13 +1114,61 @@ function runEd(r, i){
     (r.yapilan_km || r.yapilan_sure || r.yapilan_pace || r.zorluk || r.ogrenci_notu ? '<div class="stu">🏃 Öğrenci: ' + (r.yapilan_km ? fx(n(r.yapilan_km), 2) + ' km' : '– km') + ' · ' + esc(r.yapilan_sure || '–') + ' · ' + esc(r.yapilan_pace || '–') + ' /km' +
       (r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '') + (r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '') + '</div>' : '') + '</div>';
 }
+/* --- hareket kütüphanesi ve seçici --- */
+const EX_LIB = {
+  'Bacak': ['Back Squat','Front Squat','Goblet Squat','Smith Machine Squat','Hack Squat','Box Squat','Leg Press','Bulgarian Split Squat','Walking Lunge','Reverse Lunge','Lateral Lunge','Step-up','Leg Extension','Sissy Squat','Wall Sit','Pistol Squat (destekli)'],
+  'Kalça & arka bacak': ['Hip Thrust','Barbell Glute Bridge','Glute Bridge','Single-Leg Glute Bridge','Romanian Deadlift','Single-Leg RDL','Deadlift','Sumo Deadlift','Stiff-Leg Deadlift','Good Morning','Kettlebell Swing','Cable Kickback','Hip Abduction (makine)','Hip Adduction (makine)','Lying Leg Curl','Seated Leg Curl','Nordic Curl','Frog Pump','Fire Hydrant','Clamshell (bantlı)','Lateral Band Walk','Donkey Kick'],
+  'Baldır': ['Standing Calf Raise','Seated Calf Raise','Leg Press Calf Raise','Single-Leg Calf Raise'],
+  'Göğüs': ['Bench Press','Incline Bench Press','Decline Bench Press','Dumbbell Bench Press','Incline Dumbbell Press','Dumbbell Fly','Incline Dumbbell Fly','Cable Crossover','Pec Deck','Chest Press (makine)','Push-up (şınav)','Dizüstü Şınav','Incline Push-up','Dips'],
+  'Sırt': ['Lat Pulldown','Close-Grip Lat Pulldown','Pull-up (barfiks)','Destekli Barfiks','Seated Cable Row','Barbell Row','Tek Kol Dumbbell Row','T-Bar Row','Chest-Supported Row','Straight-Arm Pulldown','Inverted Row','Back Extension (hiperekstansiyon)','Shrug'],
+  'Omuz': ['Overhead Press','Dumbbell Shoulder Press','Arnold Press','Shoulder Press (makine)','Lateral Raise','Cable Lateral Raise','Front Raise','Rear Delt Fly','Reverse Pec Deck','Face Pull','Upright Row'],
+  'Kol': ['Barbell Curl','Dumbbell Curl','Hammer Curl','Preacher Curl','Cable Curl','Incline Dumbbell Curl','Concentration Curl','Triceps Pushdown','Rope Pushdown','Overhead Triceps Extension','Skull Crusher','Close-Grip Bench Press','Bench Dips','Triceps Kickback'],
+  'Karın & core': ['Plank','Side Plank','Crunch','Reverse Crunch','Lying Leg Raise','Hanging Leg Raise','Russian Twist','Bicycle Crunch','Dead Bug','Bird Dog','Mountain Climber','Cable Crunch','Ab Wheel','Pallof Press','Hollow Hold','V-Up','Heel Touch'],
+  'Tüm vücut & kondisyon': ['Burpee','Jumping Jack','Jump Squat','Box Jump','Thruster','Kettlebell Clean','Farmer\'s Walk','Battle Rope','Sled Push','Wall Ball','İp Atlama','Bear Crawl','Skater Jump','High Knees'],
+  'Kardiyo': ['Eğimli Yürüyüş (koşu bandı)','Bisiklet','Eliptik','Kürek Makinesi','Stair Climber','Yüzme','Tempolu Yürüyüş'],
+  'Mobilite & esneme': ['90/90 Kalça Mobilitesi','Hip Flexor Stretch','Hamstring Stretch','Pigeon Stretch','Cat-Cow','World\'s Greatest Stretch','Thoracic Rotation','Foam Roller','Ankle Mobility','Shoulder Dislocates (bant)']
+};
+function exAll(){ return Object.keys(EX_LIB).flatMap(c => EX_LIB[c].map(n => [c, n])); }
+function exPick(i, isNew){
+  S.pickI = i; S.pickNew = !!isNew; S.pickQ = ''; S.pickCat = S.pickCat || 'Tümü';
+  let ov = document.getElementById('pk');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'pk'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(30,15,30,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center';
+  ov.onclick = e => { if(e.target === ov) pkClose(); };
+  ov.innerHTML = '<div style="background:var(--bg);width:100%;max-width:560px;height:86vh;border-radius:22px 22px 0 0;display:flex;flex-direction:column;padding:14px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.15)">' +
+    '<div class="row" style="margin-bottom:10px"><h3 class="sp" style="margin:0">Hareket seç</h3><button class="btn gh sm" onclick="pkClose()">Kapat</button></div>' +
+    '<input id="pkq" placeholder="🔎 Ara (ör. squat, row, plank)" oninput="S.pickQ=this.value;pkList()" autocomplete="off">' +
+    '<div class="tabs" id="pkc" style="margin:10px 0 6px"></div><div id="pkl" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>' +
+    '<details style="margin-top:8px"><summary class="mut" style="cursor:pointer;font-size:14px">Listede yok mu? Elle yaz</summary><div class="row" style="margin-top:8px"><input id="pkm" class="sp" style="width:auto" maxlength="80" placeholder="Hareketin adı"><button class="btn sm" onclick="pkManual()">Ekle</button></div></details></div>';
+  pkCats(); pkList();
+}
+function pkCats(){
+  const el = document.getElementById('pkc'); if(!el) return;
+  el.innerHTML = ['Tümü'].concat(Object.keys(EX_LIB)).map(c => '<button class="' + (c === S.pickCat ? 'on' : '') + '" onclick="S.pickCat=\'' + c.replace(/'/g, "\\'") + '\';pkCats();pkList()">' + esc(c) + '</button>').join('');
+}
+function pkList(){
+  const el = document.getElementById('pkl'); if(!el) return;
+  const q = nz(S.pickQ).trim(), cur = (S.edit[S.pickI] || {}).egzersiz || '';
+  const src = q ? exAll() : (S.pickCat === 'Tümü' ? exAll() : EX_LIB[S.pickCat].map(n => [S.pickCat, n]));
+  const l = src.filter(x => !q || nz(x[1]).indexOf(q) >= 0 || nz(x[0]).indexOf(q) >= 0);
+  S._pk = l.map(x => x[1]);
+  el.innerHTML = l.length ? l.map((x, k) => '<div class="pkit' + (x[1] === cur ? ' on' : '') + '" onclick="pkSel(' + k + ')"><span>' + esc(x[1]) + '</span><span class="mut" style="font-size:12px">' + esc(x[0]) + '</span></div>').join('')
+    : '<div class="empty">Bulunamadı. Aşağıdan elle yazabilirsin.</div>';
+}
+function pkSet(name){ const r = S.edit[S.pickI]; if(!r) return; r.egzersiz = name; S.dirty = true; S.pickNew = false; pkClose(); render_cprog(); }
+function pkSel(k){ pkSet(S._pk[k]); }
+function pkManual(){ const v = (document.getElementById('pkm').value || '').trim(); if(!v){ toast('Hareketin adını yaz', true); return; } pkSet(v); }
+function pkClose(){
+  const ov = document.getElementById('pk'); if(ov) ov.remove();
+  if(S.pickNew){ const r = S.edit[S.pickI]; if(r && !r.egzersiz){ S.edit.splice(S.pickI, 1); render_cprog(); } S.pickNew = false; }
+}
 function rmEx(i){ S.edit.splice(i, 1); S.dirty = true; render_cprog(); }
 function mv(i, d){
   const g = S.edit[i].gun, idx = S.edit.map((r, j) => r.gun === g ? j : -1).filter(j => j >= 0), pos = idx.indexOf(i), to = idx[pos + d];
   if(to === undefined) return; const t = S.edit[i]; S.edit[i] = S.edit[to]; S.edit[to] = t; S.dirty = true; render_cprog();
 }
 function saveProg(){
-  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
+  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, alternatif: r.tur === 'kosu' ? '' : (r.alternatif || ''), tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
     .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi' + nTxt(r)); render_cprog(); });
 }
 function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı' + nTxt(r)); render_cprog(); }); }
