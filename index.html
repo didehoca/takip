@@ -43,6 +43,8 @@ nav button.on{color:var(--pri);background:var(--pri2)}
 .sp{flex:1}
 .mut{color:var(--mut);font-size:13px}
 .grid{display:grid;gap:10px}
+.grid>*{min-width:0}
+.f input[type=date]{min-width:0;max-width:100%;width:100%;display:block;-webkit-appearance:none;appearance:none;min-height:44px;text-align:left}
 .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
 @media(max-width:520px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr 1fr}}
 .rings{display:flex;align-items:center;gap:6px;justify-content:space-around;flex-wrap:wrap}
@@ -878,8 +880,8 @@ function fRender(){
   let h = '<div class="row" style="margin-bottom:10px">' + fBack() + '<b class="sp" style="text-align:center">📸 İlerleme fotoğrafları</b></div>';
   if(coach) h += '<select onchange="S.fsid=this.value;S.fl=null;S.fcmp=null;fLoad()" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.fsid ? ' selected' : '') + '>' + esc(s.ad) + '</option>').join('') + '</select>';
   if(!coach) h += '<div class="card"><h3>Yeni fotoğraf</h3><div class="mut" style="font-size:13px;margin-bottom:8px">İpucu: her seferinde aynı yerde, aynı ışıkta, sabah aç karnına çek. Ön, yan ve arka.</div>' +
-    '<div class="grid g2"><div class="f"><label>Tarih</label><input type="date" id="f_t" value="' + (S.fT || todayS()) + '" onchange="S.fT=this.value"></div>' +
-    '<div class="f"><label>Açı</label><div class="tabs" style="margin:0">' + Object.keys(ACI).map(k => '<button class="' + (S.fAci === k ? 'on' : '') + '" onclick="S.fAci=\'' + k + '\';fRender()">' + ACI[k] + '</button>').join('') + '</div></div></div>' +
+    '<div class="f"><label>Tarih</label><input type="date" id="f_t" value="' + (S.fT || todayS()) + '" onchange="S.fT=this.value"></div>' +
+    '<div class="f"><label>Açı</label><div class="tabs" style="margin:0">' + Object.keys(ACI).map(k => '<button class="' + (S.fAci === k ? 'on' : '') + '" onclick="S.fAci=\'' + k + '\';fRender()">' + ACI[k] + '</button>').join('') + '</div></div>' +
     '<label class="btn blk" style="display:block;text-align:center;cursor:pointer">' + (S.fBusy ? '⏳ Yükleniyor…' : '📷 ' + ACI[S.fAci] + ' fotoğrafı seç / çek') + '<input type="file" accept="image/*" style="display:none" onchange="fUp(this)"' + (S.fBusy ? ' disabled' : '') + '></label></div>';
   if(!l.length){ h += '<div class="card empty">' + (coach ? 'Bu öğrenci henüz fotoğraf yüklemedi.' : 'Henüz fotoğraf yok. İlk fotoğrafların başlangıç noktan olacak 💪') + '</div>'; }
   else {
@@ -966,8 +968,8 @@ function render_sg(){
   h += '<div class="card"><h3>' + (e ? 'Rahatsızlığı düzenle' : 'Yeni rahatsızlık bildir') + '</h3>' +
     '<div class="grid g2"><div class="f"><label>Tür</label><select id="sg_tur">' + SG_TUR.map(t => '<option' + (t === f.tur ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></div>' +
     '<div class="f"><label>Bölge / ne</label><input id="sg_bolge" maxlength="60" placeholder="ör. sağ diz, bel, grip" value="' + esc(f.bolge || '') + '"></div></div>' +
-    '<div class="grid g2"><div class="f"><label>Ne zamandan beri?</label><input type="date" id="sg_bas" value="' + (f.baslangic || todayS()) + '"></div>' +
-    '<div class="f"><label>Şiddet (1 hafif – 10 çok kötü)</label><select id="sg_sd"><option value="">Seçme</option>' + [1,2,3,4,5,6,7,8,9,10].map(i => '<option' + (f.siddet === i ? ' selected' : '') + '>' + i + '</option>').join('') + '</select></div></div>' +
+    '<div class="f"><label>Ne zamandan beri?</label><input type="date" id="sg_bas" value="' + (f.baslangic || todayS()) + '"></div>' +
+    '<div class="f"><label>Şiddet (1 hafif – 10 çok kötü)</label><select id="sg_sd"><option value="">Seçme</option>' + [1,2,3,4,5,6,7,8,9,10].map(i => '<option' + (f.siddet === i ? ' selected' : '') + '>' + i + '</option>').join('') + '</select></div>' +
     '<div class="f"><label>Detaylar</label><textarea id="sg_ac" rows="4" maxlength="1000" placeholder="Nasıl oldu? Hangi harekette ağrıyor? Doktora gittin mi, ne dedi? Kullandığın ilaç var mı?">' + esc(f.aciklama || '') + '</textarea></div>' +
     '<div class="row"><button class="btn sp" onclick="sgSave()">' + (e ? 'Güncelle' : 'Dide Hoca\'ya bildir') + '</button>' + (e ? '<button class="btn gh" onclick="S.sgE=null;render_sg()">Vazgeç</button>' : '') + '</div></div>';
   if(act.length) h += '<h3 style="margin:16px 4px 8px">Devam edenler</h3>' + act.map(r => sgCard(r, true)).join('');
