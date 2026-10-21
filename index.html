@@ -859,9 +859,10 @@ function fPin(){
 function fLoad(){
   if(!S.fl) $('app').innerHTML = '<div class="empty">Fotoğraflar yükleniyor…</div>'; else fRender();
   const sid = ROLE === 'coach' ? S.fsid : null, req = sid;
-  fcall('liste', ROLE === 'coach' ? {sid} : {}).then(l => { if(ROLE === 'coach' && S.fsid !== req) return; S.fl = l; if(S.tab === 'foto' || S.tab === 'cfoto') fRender(); })
+  fcall('liste', ROLE === 'coach' ? {sid, ad: fAd()} : {}).then(l => { if(ROLE === 'coach' && S.fsid !== req) return; S.fl = l; if(S.tab === 'foto' || S.tab === 'cfoto') fRender(); })
     .catch(e => { if(/PIN/.test(e.message)){ S.fpin = null; fGate(e.message); } else toast(e.message, true); });
 }
+function fAd(){ const s = (S.ov && S.ov.students || []).find(x => x.id === S.fsid); return s ? s.ad : ''; }
 function fDates(){ return [...new Set((S.fl || []).map(x => x.tarih))]; }
 function fRender(){
   const coach = ROLE === 'coach', l = S.fl || [], ds = fDates();
@@ -919,7 +920,7 @@ function fBig(id){
     '<div class="row"><button class="btn sec" onclick="document.getElementById(\'fov\').remove()">Kapat</button>' + (ROLE === 'coach' ? '' : '<button class="btn gh" style="color:#fff" onclick="fDel(\'' + id + '\')">Sil</button>') + '</div>';
   ov.onclick = e => { if(e.target === ov) ov.remove(); };
   document.body.appendChild(ov);
-  fcall('buyuk', ROLE === 'coach' ? {sid: S.fsid, id} : {id}).then(r => { const i = document.getElementById('fovi'); if(i) i.src = r.src; }).catch(() => {});
+  fcall('buyuk', ROLE === 'coach' ? {sid: S.fsid, ad: fAd(), id} : {id}).then(r => { const i = document.getElementById('fovi'); if(i) i.src = r.src; }).catch(() => {});
 }
 function fDel(id){
   if(S._fdel !== id){ S._fdel = id; toast('Silmek için tekrar Sil\'e dokun'); setTimeout(() => { if(S._fdel === id) S._fdel = null; }, 3000); return; }
