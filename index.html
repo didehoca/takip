@@ -44,6 +44,10 @@ nav button.on{color:var(--pri);background:var(--pri2)}
 .mut{color:var(--mut);font-size:13px}
 .grid{display:grid;gap:10px}
 .grid>*{min-width:0}
+.msg{max-width:85%;padding:8px 12px;border-radius:16px;margin:6px 0;white-space:pre-wrap;word-wrap:break-word;line-height:1.4}
+.msg.c{background:var(--pri2);border-bottom-left-radius:4px}
+.msg.s{background:#eef1f6;margin-left:auto;border-bottom-right-radius:4px}
+.msg small{display:block;font-size:11px;color:var(--mut);margin-top:3px}
 .exsel{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:15px;color:var(--ink);cursor:pointer;min-width:0}
 .exsel b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pkit{display:flex;justify-content:space-between;align-items:center;padding:11px 6px;border-bottom:1px dashed var(--line);cursor:pointer}
@@ -146,7 +150,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-21a';
+const BUILD = '2026-10-21b';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -435,7 +439,7 @@ function loadDay(d){
 function render_bugun(){
   const d = S.day;
   $('app').innerHTML = pushCard() + dateNav(d.date, 'loadDay') + noTargets(d.targets) +
-    '<div class="card">' + rings(d.totals, d.targets) + '</div>' + rzStrip() + uyumCard() +
+    yeniBanner(d) + '<div class="card">' + rings(d.totals, d.targets) + '</div>' + rzStrip() + yorumCard(d) + uyumCard() +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
     '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
     '<div class="card"><h3>Son 7 gün · kalori</h3>' + weekBars(d.week, d.targets.kcal) + '</div>' +
@@ -1159,6 +1163,54 @@ function pkOzet(){
   return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.odSid=\'' + x.s.id + '\';go(\'odeme\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
     : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz üyelik girilmedi. Alttaki ₺ Ödeme sekmesinden ekleyebilirsin.') + '</div>') + '</div>';
 }
+/* =================== DİDE HOCA ↔ ÖĞRENCİ YORUMLARI =================== */
+const HAZIR = ['Harika gidiyorsun 💪','Bugün çok iyi 👏','Su az kaldı 💧','Proteine dikkat 🥩','Sebze ekle 🥗','Akşamı hafif tut 🌙','Antrenmanı kaçırma 🏋️','Aferin, devam! 🔥'];
+function yeniBanner(d){
+  const y = d.yeni; if(!y || ROLE !== 'student' || !y.coach || y.coachTarih === d.date) return '';
+  return '<div class="card row" style="cursor:pointer;background:#fdf0f5" onclick="loadDay(\'' + y.coachTarih + '\')"><div style="font-size:24px">💬</div><div class="sp"><b>Dide Hoca\'dan yeni yorum</b><div class="mut" style="font-size:13px">' + fmtD(y.coachTarih, true) + ' · görmek için dokun</div></div><span class="mut">›</span></div>';
+}
+function yorumCard(d){
+  const coach = ROLE === 'coach', l = d.yorum || [];
+  const me = coach ? 'coach' : 'student';
+  let h = '<div class="card"><h3>💬 ' + (coach ? 'Yorum yap' : 'Dide Hoca ile') + '</h3>';
+  if(!l.length) h += '<div class="mut" style="font-size:13px;margin-bottom:8px">' + (coach ? 'Bu güne yorumun öğrenciye bildirim olarak gider.' : 'Dide Hoca bu günün hakkında yorum yaparsa burada görürsün. Sen de soru sorabilirsin.') + '</div>';
+  h += l.map(m => '<div class="msg ' + (m.yazan === 'coach' ? 'c' : 's') + '"' + (m.yazan === me ? ' onclick="yorumSil(\'' + m.id + '\')"' : '') + '>' + (m.yazan === 'coach' && !coach ? '<b style="font-size:12px;color:var(--pri)">Dide Hoca</b><br>' : '') + esc(m.metin) +
+    '<small>' + esc((m.zaman || '').slice(11, 16)) + (m.yazan === me ? (m.okundu ? ' · görüldü ✓✓' : ' · gönderildi ✓') : '') + '</small></div>').join('');
+  if(coach) h += '<div class="chips" style="margin:8px 0">' + HAZIR.map((t, i) => '<button class="btn gh sm" onclick="yorumHazir(' + i + ')">' + esc(t) + '</button>').join('') + '</div>';
+  h += '<div class="row" style="margin-top:8px;align-items:flex-end"><textarea id="ym" class="sp" rows="1" style="width:auto;min-height:44px;resize:none" placeholder="' + (coach ? 'Öğrenciye yaz…' : 'Dide Hoca\'ya yaz…') + '" oninput="this.style.height=\'auto\';this.style.height=Math.min(this.scrollHeight,140)+\'px\'"></textarea><button class="btn" onclick="yorumGonder()">Gönder</button></div></div>';
+  const unread = l.filter(m => m.yazan !== me && !m.okundu);
+  if(unread.length){
+    unread.forEach(m => m.okundu = true);
+    call('yorumOku', coach ? {sid: S.sid, date: d.date} : {date: d.date}, true).catch(() => {});
+    if(!coach && d.yeni && d.yeni.coachTarih === d.date){ d.yeni.coach = Math.max(0, d.yeni.coach - unread.length); }
+  }
+  return h;
+}
+function yDay(){ return ROLE === 'coach' ? S.det.day : S.day; }
+function yorumHazir(i){ const t = $('ym'); if(t){ t.value = (t.value ? t.value + ' ' : '') + HAZIR[i]; t.focus(); } }
+function yorumGonder(){
+  const t = $('ym'), v = t ? t.value.trim() : ''; if(!v){ toast('Mesajını yaz', true); return; }
+  const d = yDay(), coach = ROLE === 'coach';
+  if(S._yb) return; S._yb = true;
+  call('yorumYaz', coach ? {sid: S.sid, date: d.date, metin: v} : {date: d.date, metin: v}).then(r => {
+    S._yb = false;
+    if(coach){ if(S.det && S.det.id === S.sid) S.det.day = r; toast('✓ Gönderildi' + nTxt(r)); if(S.tab === 'ogrenci') render_det(); }
+    else { if(r.date === S.date) S.day = r; toast('✓ Dide Hoca\'ya gönderildi'); if(S.tab === 'bugun') render_bugun(); }
+  }).catch(() => { S._yb = false; });
+}
+function yorumSil(id){
+  if(S._ysd !== id){ S._ysd = id; toast('Mesajı silmek için tekrar dokun'); setTimeout(() => { if(S._ysd === id) S._ysd = null; }, 3000); return; }
+  S._ysd = null; const d = yDay(), coach = ROLE === 'coach';
+  call('yorumSil', coach ? {sid: S.sid, date: d.date, id} : {date: d.date, id}).then(r => {
+    if(coach){ S.det.day = r; render_det(); } else { S.day = r; render_bugun(); }
+  }).catch(() => {});
+}
+function openStuDate(id, date){ S.sid = id; S.det = null; S.cdate = date || todayS(); S.dt = 'gun'; go('ogrenci'); }
+function mesajOzet(){
+  const l = S.ov.students.filter(s => s.mesaj);
+  if(!l.length) return '';
+  return '<div class="card"><h3>💬 Yeni mesajlar</h3>' + l.map(s => '<div class="warnli" onclick="openStuDate(\'' + s.id + '\',\'' + s.mesaj.tarih + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill warn">' + s.mesaj.adet + '</span></div><div class="mut">' + esc(s.mesaj.metin.length > 80 ? s.mesaj.metin.slice(0, 77) + '…' : s.mesaj.metin) + '</div></div>').join('') + '</div>';
+}
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
 }
@@ -1168,7 +1220,7 @@ function render_ozet(){
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
   let h = pushCard() + '<button class="btn sec blk" style="margin-bottom:12px" onclick="go(\'rapor\')">📈 Haftalık rapor</button><div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
-  h += pkOzet();
+  h += mesajOzet() + pkOzet();
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
@@ -1201,7 +1253,7 @@ function render_det(){
     (s.rozet ? '<div class="mut" style="margin:-2px 4px 10px;font-size:13px">' + (s.rozet.seri.giris ? '🔥 ' + s.rozet.seri.giris + ' gün seri · ' : '') + 'En uzun seri ' + s.rozet.seri.enUzun + ' gün · 🏅 ' + s.rozet.kazanilan + '/' + s.rozet.toplam + ' rozet</div>' : '') +
     '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
   if((S.dt || 'gun') === 'gun'){
-    h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' +
+    h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' + yorumCard(d) +
       '<div class="card"><h3>Yedikleri</h3>' + entriesView(d, true) + '</div>' +
       '<div class="card"><h3>7 gün · kalori</h3>' + weekBars(d.week, t.kcal) + '</div>' +
       '<div class="card"><h3>7 gün tablosu</h3><div class="tw"><table><tr><th>Gün</th><th>kcal</th><th>P</th><th>K</th><th>Y</th><th>Su</th></tr>' +
