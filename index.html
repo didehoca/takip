@@ -312,7 +312,8 @@ function go(tab){
 
 /* =================== ÖĞRENCİ =================== */
 const ST_VIEWS = {
-  bugun: () => render_bugun(),
+  bugun: () => { render_bugun(); rzLoad(); },
+  rozet: () => { if(S.rz) render_rozet(); else wait_(); rzLoad(); },
   ekle: () => render_ekle(),
   foto: () => fotoStart(),
   saglik: () => { if(S.sg) render_sg(); else wait_(); call('saglik', {}, true).then(r => { S.sg = r; if(S.tab === 'saglik' && idle()) render_sg(); }).catch(e => toast(e.message, true)); },
@@ -353,7 +354,7 @@ function sync(action, params, apply){
       }
     });
 }
-const applyDay = r => { if(r.day.date === S.date) S.day = r.day; S.favs = r.favs; };
+const applyDay = r => { if(r.day.date === S.date) S.day = r.day; S.favs = r.favs; clearTimeout(S._rzT); S._rzT = setTimeout(rzLoad, 1500); };
 /* --- telefon bildirimleri (OneSignal) --- */
 window.OneSignalDeferred = window.OneSignalDeferred || [];
 const pushOn = () => OS_APP && OS_APP.indexOf('ONESIGNAL') < 0;
@@ -418,7 +419,7 @@ function loadDay(d){
 function render_bugun(){
   const d = S.day;
   $('app').innerHTML = pushCard() + dateNav(d.date, 'loadDay') + noTargets(d.targets) +
-    '<div class="card">' + rings(d.totals, d.targets) + '</div>' + uyumCard() +
+    '<div class="card">' + rings(d.totals, d.targets) + '</div>' + rzStrip() + uyumCard() +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
     '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
     '<div class="card"><h3>Son 7 gün · kalori</h3>' + weekBars(d.week, d.targets.kcal) + '</div>' +
@@ -997,6 +998,118 @@ function sgDel(id){
   S._sgd = null;
   call('deleteSaglik', {id}).then(l => { S.sg = l; toast('Silindi'); render_sg(); }).catch(() => {});
 }
+/* =================== SERİ VE ROZETLER =================== */
+function rzLoad(){
+  if(ROLE !== 'student' || S._rzBusy) return; S._rzBusy = true;
+  call('rozet', {}, true).then(r => {
+    S._rzBusy = false;
+    const k = 'dh_rz_' + TOKEN, now = r.rozetler.filter(b => b.kazanildi).map(b => b.id);
+    let old = null; try { old = JSON.parse(localStorage.getItem(k) || 'null'); } catch(e) {}
+    if(old){ const yeni = r.rozetler.filter(b => b.kazanildi && old.indexOf(b.id) < 0); if(yeni.length) setTimeout(() => toast('🏅 Yeni rozet kazandın: ' + yeni[0].emoji + ' ' + yeni[0].ad + (yeni.length > 1 ? ' (+' + (yeni.length - 1) + ')' : '')), 600); }
+    try { localStorage.setItem(k, JSON.stringify(now)); } catch(e) {}
+    const changed = !S.rz || JSON.stringify(S.rz) !== JSON.stringify(r); S.rz = r;
+    if(changed && idle()){ if(S.tab === 'bugun') render_bugun(); else if(S.tab === 'rozet') render_rozet(); }
+  }).catch(() => { S._rzBusy = false; });
+}
+function rzStrip(){
+  const r = S.rz; if(!r) return '';
+  const g = r.seri.giris;
+  return '<div class="card row" style="cursor:pointer;background:linear-gradient(135deg,#fff4e8,#fde7ef)" onclick="go(\'rozet\')">' +
+    '<div style="font-size:30px;line-height:1">' + (g ? '🔥' : '🌱') + '</div><div class="sp"><b>' + (g ? g + ' gün seri' : 'Seriye bugün başla') + '</b>' +
+    '<div class="mut" style="font-size:13px">' + (r.seri.enUzun ? 'En uzun: ' + r.seri.enUzun + ' gün · ' : '') + '🏅 ' + r.kazanilan + '/' + r.toplam + ' rozet</div></div><span class="mut">›</span></div>';
+}
+function render_rozet(){
+  const r = S.rz, s = r.seri;
+  let h = '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="go(\'bugun\')">‹ Bugün</button><b class="sp" style="text-align:center">🏅 Seri ve rozetler</b></div>';
+  h += '<div class="card" style="text-align:center;background:linear-gradient(135deg,#fff4e8,#fde7ef)"><div style="font-size:46px;line-height:1.1">' + (s.giris ? '🔥' : '🌱') + '</div>' +
+    '<div style="font-size:28px;font-weight:800">' + s.giris + ' gün</div><div class="mut">' + (s.giris ? 'üst üste yemeklerini girdin' : 'Bugün yemeğini gir, serin başlasın!') + '</div>' +
+    '<div class="grid g3" style="margin-top:12px"><div class="stat"><b>' + s.enUzun + '</b><span>En uzun seri</span></div><div class="stat"><b>' + s.su + '</b><span>💧 Su serisi</span></div><div class="stat"><b>' + s.protein + '</b><span>💪 Protein serisi</span></div></div></div>';
+  h += '<div class="card"><h3>Rozetler · ' + r.kazanilan + '/' + r.toplam + '</h3><div class="grid g3">' + r.rozetler.map(b =>
+    '<div style="text-align:center;padding:10px 4px;border-radius:14px;background:' + (b.kazanildi ? '#fff7e6' : '#f6f2f4') + ';' + (b.kazanildi ? '' : 'opacity:.55') + '">' +
+    '<div style="font-size:30px;' + (b.kazanildi ? '' : 'filter:grayscale(1)') + '">' + b.emoji + '</div><div style="font-weight:700;font-size:13px;margin-top:4px">' + esc(b.ad) + '</div>' +
+    '<div class="mut" style="font-size:11px;margin-top:2px">' + esc(b.aciklama) + '</div>' +
+    (b.kazanildi ? '<div style="font-size:11px;color:var(--ok);margin-top:4px">✓ Kazanıldı</div>' : '<div class="bar" style="margin-top:6px;height:5px"><i style="width:' + Math.round(b.deger / b.hedef * 100) + '%;background:var(--pri)"></i></div><div class="mut" style="font-size:11px;margin-top:2px">' + fx(b.deger, 1) + '/' + b.hedef + '</div>') +
+    '</div>').join('') + '</div></div>';
+  $('app').innerHTML = h;
+}
+/* =================== PAKET VE ÖDEME (antrenör) =================== */
+function tl(v){ return Math.round(n(v)).toLocaleString('tr-TR') + ' ₺'; }
+function gunTxt(g, gec){ return g === 0 ? 'bugün' : g > 0 ? g + ' gün sonra' : (-g) + ' gün ' + (gec || 'önce'); }
+function pkLoad(sid){ call('paket', {sid}, true).then(r => { S.pk = Object.assign(r, {sid}); if(S.tab === 'ogrenci' && S.dt === 'paket' && S.sid === sid && idle()) render_det(); }).catch(() => {}); }
+function pkView(s){
+  if(!S.pk || S.pk.sid !== s.id){ pkLoad(s.id); return '<div class="empty">Yükleniyor…</div>'; }
+  const a = S.pk.aktif, f = S.pkF;
+  let h = '<div class="mut" style="font-size:12px;margin:-4px 4px 8px">🔒 Bu bölümü sadece sen görürsün; öğrenci göremez.</div>';
+  if(f) return h + pkForm(f);
+  if(!a) return h + '<div class="card empty">Bu öğrenci için paket girilmedi.<br><button class="btn" style="margin-top:10px" onclick="pkNew()">＋ Paket ekle</button></div>';
+  const durum = a.bitti ? '<span class="pill bad">bitti</span>' : !a.basladi ? '<span class="pill warn">başlamadı</span>' : a.kalanGun <= 7 ? '<span class="pill warn">' + a.kalanGun + ' gün kaldı</span>' : '<span class="pill ok">aktif</span>';
+  const og = a.odemeGun, ogCol = a.kalanTutar <= 0 ? 'var(--ok)' : og === null ? 'var(--mut)' : og < 0 ? 'var(--bad)' : og <= 3 ? 'var(--warn)' : 'var(--ink)';
+  h += '<div class="card"><div class="row"><h3 class="sp" style="margin:0">' + esc(a.ad) + '</h3>' + durum + '</div>' +
+    '<div class="mut" style="margin:6px 0">' + fmtD(a.baslangic) + ' – ' + fmtD(a.bitis) + ' · ' + a.gun + ' günlük üyelik</div>' +
+    '<div class="bar"><i style="width:' + Math.round(a.gecen / a.gun * 100) + '%;background:var(--pri)"></i></div>' +
+    '<div class="row mut" style="font-size:13px;margin-top:4px"><span class="sp">' + a.gecen + ' gün geçti</span><b style="color:var(--ink)">' + (a.bitti ? 'Paket bitti' : a.kalanGun + ' gün kaldı') + '</b></div>' +
+    '<div class="grid g3" style="margin-top:12px"><div class="stat"><b>' + tl(a.ucret) + '</b><span>Ücret</span></div><div class="stat"><b style="color:var(--ok)">' + tl(a.odenen) + '</b><span>Ödenen</span></div><div class="stat"><b style="color:' + (a.kalanTutar > 0 ? 'var(--bad)' : 'var(--ok)') + '">' + tl(a.kalanTutar) + '</b><span>Kalan</span></div></div>' +
+    '<div style="margin-top:10px;font-weight:600;color:' + ogCol + '">' + (a.kalanTutar <= 0 ? '✓ Ödemesi tamamlandı' : a.odemeTarihi ? '💳 Sonraki ödeme: ' + fmtD(a.odemeTarihi, true) + ' (' + gunTxt(og, 'gecikti') + ')' : '💳 Ödeme tarihi girilmedi') + '</div>' +
+    (a.not ? '<div class="mut" style="margin-top:6px">📝 ' + esc(a.not) + '</div>' : '') +
+    '<div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn sm" onclick="pkPay()">＋ Ödeme ekle</button><button class="btn gh sm" onclick="pkEdit()">✎ Düzenle</button><button class="btn gh sm" onclick="pkNew(1)">↻ Yeni paket</button></div>' +
+    (S.pkPay ? pkPayForm(a) : '') + '</div>';
+  h += '<div class="card"><h3>Ödemeler</h3>' + (a.odemeler.length ? a.odemeler.map(o => '<div class="ent"><div class="n"><div>' + tl(o.tutar) + '</div><div class="mut">' + fmtD(o.tarih, true) + (o.not ? ' · ' + esc(o.not) : '') + '</div></div><button class="x" onclick="pkDelPay(\'' + o.id + '\')">✕</button></div>').join('') : '<div class="empty">Henüz ödeme girilmedi.</div>') + '</div>';
+  if(S.pk.gecmis.length) h += '<div class="card"><h3>Geçmiş paketler</h3>' + S.pk.gecmis.map(p => '<div class="ent"><div class="n"><div>' + esc(p.ad) + '</div><div class="mut">' + fmtD(p.baslangic) + ' – ' + fmtD(p.bitis) + ' · ' + tl(p.ucret) + (p.kalanTutar > 0 ? ' · <span style="color:var(--bad)">' + tl(p.kalanTutar) + ' kalan</span>' : ' · ödendi') + '</div></div></div>').join('') + '</div>';
+  h += '<button class="btn gh blk" style="margin-top:4px;color:var(--bad)" onclick="pkDel(\'' + a.id + '\')">Bu paketi sil</button>';
+  return h;
+}
+function pkForm(f){
+  return '<div class="card"><h3>' + (f.id ? 'Paketi düzenle' : 'Yeni paket') + '</h3>' +
+    '<div class="f"><label>Paket adı</label><input id="pk_ad" maxlength="60" placeholder="ör. 3 aylık online koçluk" value="' + esc(f.ad || '') + '"></div>' +
+    '<div class="f"><label>Başlangıç tarihi</label><input type="date" id="pk_bas" value="' + (f.baslangic || todayS()) + '"></div>' +
+    '<div class="f"><label>Üyelik süresi (gün)</label><input id="pk_gun" inputmode="numeric" value="' + (f.gun || 30) + '"><div class="chips" style="margin-top:6px">' + [[30,'1 ay'],[60,'2 ay'],[90,'3 ay'],[180,'6 ay'],[365,'1 yıl']].map(x => '<button class="btn gh sm" onclick="$(\'pk_gun\').value=' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>' +
+    '<div class="f"><label>Toplam ücret (₺)</label><input id="pk_ucret" inputmode="numeric" value="' + (f.ucret || '') + '" placeholder="ör. 4500"></div>' +
+    '<div class="f"><label>Ödeme tarihi (sonraki / tek seferlik)</label><input type="date" id="pk_odt" value="' + (f.odemeTarihi || '') + '"></div>' +
+    '<div class="f"><label>Not (isteğe bağlı)</label><input id="pk_not" maxlength="300" placeholder="ör. 2 taksit, havale" value="' + esc(f.not || '') + '"></div>' +
+    '<div class="row"><button class="btn sp" onclick="pkSave()">Kaydet</button><button class="btn gh" onclick="S.pkF=null;render_det()">Vazgeç</button></div></div>';
+}
+function pkPayForm(a){
+  return '<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">' +
+    '<div class="f"><label>Ödenen tutar (₺)</label><input id="pp_t" inputmode="numeric" value="' + (a.kalanTutar || '') + '"></div>' +
+    '<div class="f"><label>Ödeme günü</label><input type="date" id="pp_d" value="' + todayS() + '"></div>' +
+    '<div class="f"><label>Sonraki ödeme tarihi (kalan varsa)</label><input type="date" id="pp_n" value=""></div>' +
+    '<div class="f"><label>Not</label><input id="pp_not" maxlength="200" placeholder="ör. havale, nakit"></div>' +
+    '<div class="row"><button class="btn sp" onclick="pkPaySave()">Ödemeyi kaydet</button><button class="btn gh" onclick="S.pkPay=false;render_det()">Vazgeç</button></div></div>';
+}
+function pkNew(renew){ const a = S.pk && S.pk.aktif; S.pkPay = false; S.pkF = renew && a ? {ad: a.ad, gun: a.gun, ucret: a.ucret, baslangic: addD(a.bitis, 1)} : {}; render_det(); }
+function pkEdit(){ S.pkPay = false; S.pkF = Object.assign({}, S.pk.aktif); render_det(); }
+function pkPay(){ S.pkPay = !S.pkPay; render_det(); }
+function pkSave(){
+  const f = S.pkF, p = {sid: S.sid, id: f.id || '', ad: val('pk_ad').trim(), baslangic: val('pk_bas'), gun: val('pk_gun'), ucret: val('pk_ucret'), odeme_tarihi: val('pk_odt'), not: val('pk_not').trim()};
+  if(!(n(p.gun) >= 1)){ toast('Üyelik süresini gün olarak gir', true); return; }
+  call('savePaket', p).then(r => { S.pk = Object.assign(r, {sid: S.sid}); S.pkF = null; toast('✓ Paket kaydedildi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+}
+function pkPaySave(){
+  const a = S.pk.aktif, t = n(val('pp_t')); if(!(t > 0)){ toast('Tutarı gir', true); return; }
+  const nx = val('pp_n');
+  call('addOdeme', {paket_id: a.id, tutar: t, tarih: val('pp_d'), not: val('pp_not').trim(), sonraki: nx || (t >= a.kalanTutar ? 'yok' : '')})
+    .then(r => { S.pk = Object.assign(r, {sid: S.sid}); S.pkPay = false; toast('✓ ' + tl(t) + ' ödeme kaydedildi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+}
+function pkDelPay(id){
+  if(S._pdd !== id){ S._pdd = id; toast('Silmek için tekrar ✕ dokun'); setTimeout(() => { if(S._pdd === id) S._pdd = null; }, 3000); return; }
+  S._pdd = null; call('deleteOdeme', {id}).then(r => { S.pk = Object.assign(r, {sid: S.sid}); toast('Ödeme silindi'); render_det(); }).catch(() => {});
+}
+function pkDel(id){
+  if(S._pkd !== id){ S._pkd = id; toast('Paketi ve ödemelerini silmek için tekrar dokun', true); setTimeout(() => { if(S._pkd === id) S._pkd = null; }, 3000); return; }
+  S._pkd = null; call('deletePaket', {id}).then(r => { S.pk = Object.assign(r, {sid: S.sid}); toast('Paket silindi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+}
+function pkOzet(){
+  const all = S.ov.students.filter(s => s.aktif && s.paket), up = [];
+  all.forEach(s => {
+    const p = s.paket;
+    if(p.kalanTutar > 0 && p.odemeGun !== null && p.odemeGun <= 7) up.push({s, sort: p.odemeGun, txt: '💳 ' + tl(p.kalanTutar) + ' · ' + fmtD(p.odemeTarihi) + ' (' + gunTxt(p.odemeGun, 'gecikti') + ')', bad: p.odemeGun < 0});
+    if(p.bitisGun >= 0 && p.bitisGun <= 7) up.push({s, sort: p.bitisGun + 0.5, txt: '📅 Paketi ' + (p.bitisGun === 0 ? 'bugün' : p.bitisGun + ' gün sonra') + ' bitiyor (' + fmtD(p.bitis) + ')', bad: p.bitisGun <= 1});
+    else if(p.bitisGun < 0 && p.bitisGun >= -14) up.push({s, sort: 50, txt: '📅 Paketi ' + (-p.bitisGun) + ' gün önce bitti', bad: true});
+  });
+  up.sort((a, b) => a.sort - b.sort);
+  return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.dt=\'paket\';openStu(\'' + x.s.id + '\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
+    : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz paket girilmedi. Öğrenci → 💳 Paket\'ten ekleyebilirsin.') + '</div>') + '</div>';
+}
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
 }
@@ -1006,6 +1119,7 @@ function render_ozet(){
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
   let h = pushCard() + '<button class="btn sec blk" style="margin-bottom:12px" onclick="go(\'rapor\')">📈 Haftalık rapor</button><div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
+  h += pkOzet();
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
@@ -1023,6 +1137,7 @@ function render_ozet(){
 }
 function openStu(id){ S.sid = id; S.det = null; S.cdate = todayS(); go('ogrenci'); }
 function loadDet(id, d){
+  if(S.sid !== id){ S.pkF = null; S.pkPay = false; }
   S.sid = id; S.cdate = d || S.cdate || todayS();
   call('student', {sid: id, date: S.cdate}).then(r => { S.det = r; if(S.tab === 'ogrenci') render_det(); });
 }
@@ -1034,7 +1149,8 @@ function render_det(){
   const avg = k => avgDays.length ? Math.round(avgDays.reduce((a, x) => a + x[k], 0) / avgDays.length) : null;
   let h = studentSel('loadDet') +
     (s.aktif ? '' : '<div class="card" style="background:#fdeaea">Bu öğrenci pasif. Linki çalışmıyor.</div>') + sgBanner(s.saglik) +
-    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
+    (s.rozet ? '<div class="mut" style="margin:-2px 4px 10px;font-size:13px">' + (s.rozet.seri.giris ? '🔥 ' + s.rozet.seri.giris + ' gün seri · ' : '') + 'En uzun seri ' + s.rozet.seri.enUzun + ' gün · 🏅 ' + s.rozet.kazanilan + '/' + s.rozet.toplam + ' rozet</div>' : '') +
+    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['paket','💳 Paket'],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
   if((S.dt || 'gun') === 'gun'){
     h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' +
       '<div class="card"><h3>Yedikleri</h3>' + entriesView(d, true) + '</div>' +
@@ -1043,6 +1159,8 @@ function render_det(){
       d.week.slice().reverse().map(x => { const pc = t.kcal && x.kcal ? x.kcal / t.kcal : null; return '<tr><td>' + fmtD(x.tarih, true) + '</td><td>' + (x.kcal ? '<span class="pill ' + pctCls(pc) + '">' + Math.round(x.kcal) + '</span>' : '–') + '</td><td>' + (x.p ? Math.round(x.p) : '–') + '</td><td>' + (x.k ? Math.round(x.k) : '–') + '</td><td>' + (x.y ? Math.round(x.y) : '–') + '</td><td>' + (x.su || '–') + '</td></tr>'; }).join('') +
       '<tr><th>Ort.</th><th>' + (avg('kcal') ?? '–') + '</th><th>' + (avg('p') ?? '–') + '</th><th>' + (avg('k') ?? '–') + '</th><th>' + (avg('y') ?? '–') + '</th><th>' + (avg('su') ?? '–') + '</th></tr>' +
       '<tr><td class="mut">Hedef</td><td class="mut">' + (t.kcal || '–') + '</td><td class="mut">' + (t.p || '–') + '</td><td class="mut">' + (t.k || '–') + '</td><td class="mut">' + (t.y || '–') + '</td><td class="mut">' + (t.su || '–') + '</td></tr></table></div><div class="mut">Ortalama sadece giriş yapılan günlerden hesaplanır.</div></div>';
+  } else if(S.dt === 'paket'){
+    h += pkView(s);
   } else if(S.dt === 'saglik'){
     const l = s.saglik || [];
     h += l.length ? l.map(r => sgCard(r, false)).join('') : '<div class="card empty">Bu öğrenci herhangi bir rahatsızlık bildirmedi.</div>';
