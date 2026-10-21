@@ -28,8 +28,11 @@ header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#f7b7c8
 .brand span{font-size:clamp(15px,4.8vw,19px);font-weight:800;letter-spacing:.2px;white-space:nowrap}
 header small{display:block;margin-top:3px;font-size:13px;font-weight:600;color:#6b4462}
 main{max-width:760px;margin:0 auto;padding:14px 14px 96px}
-nav{position:fixed;bottom:0;left:0;right:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-nav button{flex:1;max-width:150px;border:0;background:none;color:var(--mut);font-size:12px;padding:6px 2px;border-radius:12px;cursor:pointer}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+nav::-webkit-scrollbar{display:none}
+nav.more{-webkit-mask-image:linear-gradient(to right,#000 82%,transparent);mask-image:linear-gradient(to right,#000 82%,transparent)}
+nav button{flex:1 0 74px;max-width:150px;border:0;background:none;color:var(--mut);font-size:12px;padding:6px 2px;border-radius:12px;cursor:pointer;scroll-snap-align:start;white-space:nowrap}
+nav button:first-child{margin-left:auto}nav button:last-child{margin-right:auto}
 nav button b{display:block;font-size:20px;line-height:1.2}
 nav button.on{color:var(--pri);background:var(--pri2)}
 .card{background:var(--card);border-radius:var(--r);padding:14px;margin:0 0 12px;box-shadow:0 2px 10px rgba(120,80,110,.06);border:1px solid var(--line)}
@@ -287,11 +290,14 @@ function measTable(m, canDel){
       (canDel ? '<td><button class="x" onclick="delMeas(\'' + x.id + '\')">✕</button></td>' : '') + '</tr>').join('') + '</table></div>';
 }
 function setNav(items){
-  $('nav').innerHTML = items.map(it => '<button id="nv_' + it[0] + '" onclick="go(\'' + it[0] + '\')"><b>' + it[1] + '</b>' + it[2] + '</button>').join('');
+  const nv = $('nav');
+  nv.innerHTML = items.map(it => '<button id="nv_' + it[0] + '" onclick="go(\'' + it[0] + '\')"><b>' + it[1] + '</b>' + it[2] + '</button>').join('');
+  const fade = () => nv.classList.toggle('more', nv.scrollLeft + nv.clientWidth < nv.scrollWidth - 8);
+  nv.onscroll = fade; window.addEventListener('resize', fade); setTimeout(fade, 50);
 }
 function go(tab){
   S.tab = tab;
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.id === 'nv_' + tab));
+  document.querySelectorAll('nav button').forEach(b => { b.classList.toggle('on', b.id === 'nv_' + tab); if(b.id === 'nv_' + tab && b.scrollIntoView) try { b.scrollIntoView({inline: 'nearest', block: 'nearest'}); } catch(e) {} });
   window.scrollTo(0, 0);
   (ROLE === 'coach' ? C_VIEWS : ST_VIEWS)[tab]();
 }
@@ -393,7 +399,7 @@ function stBoot(r){
   $('sub').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋';
 }
 function stInit(r){
-  setNav([['bugun','☀︎','Bugün'],['plan','🍽︎','Planım'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']]);
+  setNav([['bugun','☀︎','Bugün'],['plan','🍽︎','Planım'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman'],['foto','📷︎','Fotoğraf'],['saglik','✚','Sağlık']]);
   stBoot(r); go('bugun');
 }
 function loadDay(d){
@@ -536,9 +542,7 @@ function delFav(id){
 }
 function render_olcum(){
   const m = S.meas;
-  $('app').innerHTML = '<div class="grid g2" style="margin-bottom:12px"><div class="card row" style="cursor:pointer;background:#fdf3f7;margin:0" onclick="go(\'foto\')"><b class="sp">📸 Fotoğraflarım</b><span class="mut">›</span></div>' +
-    '<div class="card row" style="cursor:pointer;background:#f0f7ff;margin:0" onclick="go(\'saglik\')"><b class="sp">🩺 Sağlık durumum</b><span class="mut">›</span></div></div>' +
-    '<div class="card"><h3>Özet</h3>' + measCards(m) + '</div>' + measCharts(m) +
+  $('app').innerHTML = '<div class="card"><h3>Özet</h3>' + measCards(m) + '</div>' + measCharts(m) +
     '<div class="card"><h3>Yeni ölçüm</h3><div class="grid g2"><div class="f"><label>Tarih</label><input type="date" id="o_t" value="' + todayS() + '"></div><div class="f"><label>Kilo (kg)</label><input id="o_kilo" inputmode="decimal"></div></div>' +
     '<div class="grid g3">' + [['bel','Bel cm'],['kalca','Kalça cm'],['gogus','Göğüs cm'],['kol','Kol cm'],['uyluk','Uyluk cm'],['yag','Yağ %']].map(x => '<div class="f"><label>' + x[1] + '</label><input id="o_' + x[0] + '" inputmode="decimal"></div>').join('') + '</div>' +
     '<div class="f"><label>Not</label><input id="o_not" placeholder="ör. sabah aç karnına"></div><button class="btn blk" onclick="addMeas()">Kaydet</button>' +
@@ -827,7 +831,7 @@ function fcall(a, p){
   return fetch(FOTO_API, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({t: TOKEN, a, pin: S.fpin, p: p || {}})})
     .then(r => r.json()).then(j => { if(!j.ok) throw new Error(j.error || 'Hata'); return j.data; });
 }
-function fBack(){ return ROLE === 'coach' ? '<button class="btn gh sm" onclick="go(\'ogrenci\')">‹ Öğrenci</button>' : '<button class="btn gh sm" onclick="go(\'olcum\')">‹ Ölçüm</button>'; }
+function fBack(){ return ROLE === 'coach' ? '<button class="btn gh sm" onclick="go(\'ogrenci\')">‹ Öğrenci</button>' : ''; }
 function fotoStart(){
   if(S.fpin){ fLoad(); return; }
   $('app').innerHTML = '<div class="empty">Yükleniyor…</div>';
@@ -955,7 +959,7 @@ function sgCard(r, own){
 function render_sg(){
   const l = S.sg || [], e = S.sgE ? l.find(r => r.id === S.sgE) : null, f = e || {tur: 'Sakatlık / ağrı', baslangic: todayS()};
   const act = l.filter(r => r.durum === 'devam'), past = l.filter(r => r.durum !== 'devam');
-  let h = '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="go(\'olcum\')">‹ Ölçüm</button><b class="sp" style="text-align:center">🩺 Sağlık durumum</b></div>';
+  let h = '<h3 style="margin:4px 4px 10px">🩺 Sağlık durumum</h3>';
   h += '<div class="card" style="background:#f0f7ff"><div class="mut" style="font-size:14px">Bir sakatlığın, ağrın, hastalığın, alerjin ya da kullandığın bir ilaç varsa buraya yaz. Dide Hoca\'ya hemen bildirim gider ve programını buna göre ayarlar.</div></div>';
   h += '<div class="card"><h3>' + (e ? 'Rahatsızlığı düzenle' : 'Yeni rahatsızlık bildir') + '</h3>' +
     '<div class="grid g2"><div class="f"><label>Tür</label><select id="sg_tur">' + SG_TUR.map(t => '<option' + (t === f.tur ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></div>' +
