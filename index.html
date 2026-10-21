@@ -126,6 +126,7 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 <div id="ld" class="load" style="display:none"></div>
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbxGMEt14iQj3emunOssy-8UbOUJ8nr3xkw9y19AwwFhfbJvh7Y9fpJV0zKbddVjAVR7nA/exec';
+const FOTO_API = 'https://script.google.com/macros/s/AKfycbyUvwVTRaMP-58bjLmbEXUdVA5XTMdj-d3m0Wc5YTWcGI2efkjUxT88akZHkMUST_X4/exec';
 const OS_APP = '5a5e1fa7-3a89-40ff-9521-5d84479132d7';
 const TOKEN = (function(){
   let t = (new URLSearchParams(location.search).get('t') || '').trim();
@@ -299,6 +300,7 @@ function go(tab){
 const ST_VIEWS = {
   bugun: () => render_bugun(),
   ekle: () => render_ekle(),
+  foto: () => fotoStart(),
   olcum: () => { if(S.meas) render_olcum(); else wait_(); call('meas', {}, !!S.meas).then(m => { S.meas = m; if(S.tab === 'olcum' && idle()) render_olcum(); }).catch(() => {}); },
   antrenman: () => { if(S.prog) render_ant(); else wait_(); loadProg(S.prog ? S.prog.week : todayS(), !!S.prog); }
 };
@@ -533,7 +535,8 @@ function delFav(id){
 }
 function render_olcum(){
   const m = S.meas;
-  $('app').innerHTML = '<div class="card"><h3>Özet</h3>' + measCards(m) + '</div>' + measCharts(m) +
+  $('app').innerHTML = '<div class="card row" style="cursor:pointer;background:#fdf3f7" onclick="go(\'foto\')"><b class="sp">📸 İlerleme fotoğraflarım</b><span class="mut">Aç ›</span></div>' +
+    '<div class="card"><h3>Özet</h3>' + measCards(m) + '</div>' + measCharts(m) +
     '<div class="card"><h3>Yeni ölçüm</h3><div class="grid g2"><div class="f"><label>Tarih</label><input type="date" id="o_t" value="' + todayS() + '"></div><div class="f"><label>Kilo (kg)</label><input id="o_kilo" inputmode="decimal"></div></div>' +
     '<div class="grid g3">' + [['bel','Bel cm'],['kalca','Kalça cm'],['gogus','Göğüs cm'],['kol','Kol cm'],['uyluk','Uyluk cm'],['yag','Yağ %']].map(x => '<div class="f"><label>' + x[1] + '</label><input id="o_' + x[0] + '" inputmode="decimal"></div>').join('') + '</div>' +
     '<div class="f"><label>Not</label><input id="o_not" placeholder="ör. sabah aç karnına"></div><button class="btn blk" onclick="addMeas()">Kaydet</button>' +
@@ -763,6 +766,7 @@ function uneat(iid){
 /* =================== ANTRENÖR =================== */
 const C_VIEWS = {
   ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
+  cfoto: () => { if(!S.fsid && S.ov && S.ov.students.length) S.fsid = S.ov.students[0].id; fotoStart(); },
   rapor: () => { if(S.wk) render_rapor(); else wait_(); loadRapor(S.wk ? S.wk.week : lastWeekStart()); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
   program: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.cprog) render_cprog(); if(S.sid) loadCProg(S.cprog ? S.cprog.week : todayS()); },
@@ -814,6 +818,119 @@ function render_rapor(){
   }).join('');
   $('app').innerHTML = h;
 }
+/* =================== İLERLEME FOTOĞRAFLARI (Dide Hoca'nın Drive'ında) =================== */
+const ACI = {on: 'Ön', yan: 'Yan', arka: 'Arka'};
+function fcall(a, p){
+  if(FOTO_API.indexOf('http') !== 0) return Promise.reject(new Error('Fotoğraf servisi henüz kurulmadı.'));
+  return fetch(FOTO_API, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify({t: TOKEN, a, pin: S.fpin, p: p || {}})})
+    .then(r => r.json()).then(j => { if(!j.ok) throw new Error(j.error || 'Hata'); return j.data; });
+}
+function fBack(){ return ROLE === 'coach' ? '<button class="btn gh sm" onclick="go(\'ogrenci\')">‹ Öğrenci</button>' : '<button class="btn gh sm" onclick="go(\'olcum\')">‹ Ölçüm</button>'; }
+function fotoStart(){
+  if(S.fpin){ fLoad(); return; }
+  $('app').innerHTML = '<div class="empty">Yükleniyor…</div>';
+  fcall('durum').then(d => { S.fpinVar = d.pinVar; fGate(); }).catch(e => { $('app').innerHTML = fBack() + '<div class="card empty">' + esc(e.message) + '</div>'; });
+}
+function fGate(msg){
+  const coach = ROLE === 'coach', set = S.fpinVar;
+  $('app').innerHTML = '<div class="row" style="margin-bottom:10px">' + fBack() + '</div><div class="card" style="text-align:center"><div style="font-size:38px">🔒</div>' +
+    '<h3>' + (set ? 'Fotoğraf PIN\'ini gir' : 'Fotoğraf PIN\'i belirle') + '</h3>' +
+    '<div class="mut" style="margin-bottom:12px;font-size:13px">' + (coach
+      ? 'Öğrenci fotoğrafları yalnızca senin Google Drive\'ında saklanır. ' + (set ? '' : 'Fotoğrafları açmak için kendine 4-6 haneli bir PIN belirle; bu PIN\'i kimseyle paylaşma.')
+      : 'Fotoğrafların yalnızca Dide Hoca\'nın Google Drive\'ında saklanır ve sadece sen ve Dide Hoca görebilir. ' + (set ? '' : 'Telefonunu başkası açarsa diye 4-6 haneli bir PIN belirle.')) + '</div>' +
+    (msg ? '<div style="color:var(--bad);margin-bottom:8px">' + esc(msg) + '</div>' : '') +
+    '<input id="fp1" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" style="display:block;text-align:center;font-size:20px;letter-spacing:6px;max-width:200px;margin:0 auto 8px">' +
+    (set ? '' : '<input id="fp2" type="password" inputmode="numeric" maxlength="6" placeholder="PIN tekrar" style="display:block;text-align:center;font-size:20px;letter-spacing:6px;max-width:200px;margin:0 auto 8px">') +
+    '<button class="btn" style="margin-top:4px" onclick="fPin()">' + (set ? 'Aç' : 'PIN\'i kaydet') + '</button>' +
+    (set && !coach ? '<div class="mut" style="margin-top:10px;font-size:12px">PIN\'ini unuttuysan Dide Hoca sıfırlayabilir.</div>' : '') + '</div>';
+  setTimeout(() => { const i = $('fp1'); if(i) i.focus(); }, 50);
+}
+function fPin(){
+  const a = val('fp1').trim();
+  if(!/^\d{4,6}$/.test(a)){ toast('PIN 4-6 haneli rakam olmalı', true); return; }
+  if(!S.fpinVar){
+    if(a !== val('fp2').trim()){ toast('PIN\'ler aynı değil', true); return; }
+    fcall('pinKur', {pin: a}).then(() => { S.fpin = a; S.fpinVar = true; toast('🔒 PIN kaydedildi'); fLoad(); }).catch(e => fGate(e.message));
+  } else {
+    S.fpin = a;
+    fcall('giris').then(() => fLoad()).catch(e => { S.fpin = null; fGate(e.message); });
+  }
+}
+function fLoad(){
+  if(!S.fl) $('app').innerHTML = '<div class="empty">Fotoğraflar yükleniyor…</div>'; else fRender();
+  const sid = ROLE === 'coach' ? S.fsid : null, req = sid;
+  fcall('liste', ROLE === 'coach' ? {sid} : {}).then(l => { if(ROLE === 'coach' && S.fsid !== req) return; S.fl = l; if(S.tab === 'foto' || S.tab === 'cfoto') fRender(); })
+    .catch(e => { if(/PIN/.test(e.message)){ S.fpin = null; fGate(e.message); } else toast(e.message, true); });
+}
+function fDates(){ return [...new Set((S.fl || []).map(x => x.tarih))]; }
+function fRender(){
+  const coach = ROLE === 'coach', l = S.fl || [], ds = fDates();
+  S.fAci = S.fAci || 'on';
+  let h = '<div class="row" style="margin-bottom:10px">' + fBack() + '<b class="sp" style="text-align:center">📸 İlerleme fotoğrafları</b></div>';
+  if(coach) h += '<select onchange="S.fsid=this.value;S.fl=null;S.fcmp=null;fLoad()" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.fsid ? ' selected' : '') + '>' + esc(s.ad) + '</option>').join('') + '</select>';
+  if(!coach) h += '<div class="card"><h3>Yeni fotoğraf</h3><div class="mut" style="font-size:13px;margin-bottom:8px">İpucu: her seferinde aynı yerde, aynı ışıkta, sabah aç karnına çek. Ön, yan ve arka.</div>' +
+    '<div class="grid g2"><div class="f"><label>Tarih</label><input type="date" id="f_t" value="' + (S.fT || todayS()) + '" onchange="S.fT=this.value"></div>' +
+    '<div class="f"><label>Açı</label><div class="tabs" style="margin:0">' + Object.keys(ACI).map(k => '<button class="' + (S.fAci === k ? 'on' : '') + '" onclick="S.fAci=\'' + k + '\';fRender()">' + ACI[k] + '</button>').join('') + '</div></div></div>' +
+    '<label class="btn blk" style="display:block;text-align:center;cursor:pointer">' + (S.fBusy ? '⏳ Yükleniyor…' : '📷 ' + ACI[S.fAci] + ' fotoğrafı seç / çek') + '<input type="file" accept="image/*" style="display:none" onchange="fUp(this)"' + (S.fBusy ? ' disabled' : '') + '></label></div>';
+  if(!l.length){ h += '<div class="card empty">' + (coach ? 'Bu öğrenci henüz fotoğraf yüklemedi.' : 'Henüz fotoğraf yok. İlk fotoğrafların başlangıç noktan olacak 💪') + '</div>'; }
+  else {
+    if(ds.length > 1){
+      const c = S.fcmp || [ds[ds.length - 1], ds[0]];
+      const sel = (i) => '<select onchange="S.fcmp=S.fcmp||[\'' + c[0] + '\',\'' + c[1] + '\'];S.fcmp[' + i + ']=this.value;fRender()">' + ds.slice().reverse().map(d => '<option value="' + d + '"' + (d === c[i] ? ' selected' : '') + '>' + fmtD(d) + '</option>').join('') + '</select>';
+      h += '<div class="card"><h3>Karşılaştır</h3><div class="grid g2" style="margin-bottom:8px">' + sel(0) + sel(1) + '</div>' +
+        Object.keys(ACI).map(k => { const a = l.find(x => x.tarih === c[0] && x.aci === k), b = l.find(x => x.tarih === c[1] && x.aci === k);
+          if(!a && !b) return '';
+          return '<div class="mut" style="margin:6px 0 4px">' + ACI[k] + '</div><div class="grid g2">' + [a, b].map(x => x ? '<img src="' + x.thumb + '" onclick="fBig(\'' + x.id + '\')" style="width:100%;border-radius:12px;cursor:pointer;aspect-ratio:3/4;object-fit:cover;background:#f3eef1">' : '<div class="empty" style="aspect-ratio:3/4">–</div>').join('') + '</div>'; }).join('') + '</div>';
+    }
+    h += ds.map(d => '<div class="card"><h3>' + fmtD(d, true) + '</h3><div class="grid g3">' + Object.keys(ACI).map(k => { const x = l.find(y => y.tarih === d && y.aci === k);
+      return x ? '<div><img src="' + x.thumb + '" onclick="fBig(\'' + x.id + '\')" style="width:100%;border-radius:12px;cursor:pointer;aspect-ratio:3/4;object-fit:cover;background:#f3eef1"><div class="mut" style="text-align:center;font-size:12px">' + ACI[k] + '</div></div>'
+        : '<div><div style="aspect-ratio:3/4;border:2px dashed var(--line);border-radius:12px"></div><div class="mut" style="text-align:center;font-size:12px">' + ACI[k] + '</div></div>'; }).join('') + '</div></div>').join('');
+  }
+  if(coach) h += '<button class="btn gh blk" style="margin-top:4px" onclick="fReset()">Öğrencinin fotoğraf PIN\'ini sıfırla</button>';
+  $('app').innerHTML = h;
+}
+function resizeImg(file, max, q){
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { const s = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * s); c.height = Math.round(im.height * s); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', q)); };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Fotoğraf açılamadı. JPEG/PNG olarak dene.')); };
+    im.src = u;
+  });
+}
+async function fUp(inp){
+  const f = inp.files && inp.files[0]; if(!f || S.fBusy) return;
+  S.fBusy = true; fRender();
+  try {
+    const full = await resizeImg(f, 1280, 0.82), thumb = await resizeImg(f, 360, 0.7);
+    const l = await fcall('yukle', {tarih: S.fT || todayS(), aci: S.fAci, full, thumb});
+    S.fl = l; toast('✓ ' + ACI[S.fAci] + ' fotoğrafı kaydedildi');
+    const nx = {on: 'yan', yan: 'arka', arka: 'on'}; S.fAci = nx[S.fAci];
+    call('fotoBildir', {adet: 1}, true).catch(() => {});
+  } catch(e){ toast(e.message, true); }
+  S.fBusy = false; fRender();
+}
+function fBig(id){
+  const x = (S.fl || []).find(y => y.id === id); if(!x) return;
+  const ov = document.createElement('div'); ov.id = 'fov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,20,.92);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<img id="fovi" src="' + x.thumb + '" style="max-width:100%;max-height:78vh;border-radius:12px"><div style="color:#fff;margin:10px 0">' + fmtD(x.tarih, true) + ' · ' + ACI[x.aci] + '</div>' +
+    '<div class="row"><button class="btn sec" onclick="document.getElementById(\'fov\').remove()">Kapat</button>' + (ROLE === 'coach' ? '' : '<button class="btn gh" style="color:#fff" onclick="fDel(\'' + id + '\')">Sil</button>') + '</div>';
+  ov.onclick = e => { if(e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  fcall('buyuk', ROLE === 'coach' ? {sid: S.fsid, id} : {id}).then(r => { const i = document.getElementById('fovi'); if(i) i.src = r.src; }).catch(() => {});
+}
+function fDel(id){
+  if(S._fdel !== id){ S._fdel = id; toast('Silmek için tekrar Sil\'e dokun'); setTimeout(() => { if(S._fdel === id) S._fdel = null; }, 3000); return; }
+  S._fdel = null; const o = document.getElementById('fov'); if(o) o.remove();
+  fcall('sil', {id}).then(l => { S.fl = l; toast('Silindi'); fRender(); }).catch(e => toast(e.message, true));
+}
+function fReset(){
+  if(!S._frs){ S._frs = 1; toast('Sıfırlamak için tekrar dokun'); setTimeout(() => S._frs = 0, 3000); return; }
+  S._frs = 0;
+  fcall('pinSifirla', {sid: S.fsid}).then(() => toast('✓ Öğrencinin PIN\'i sıfırlandı; bir sonraki girişte yenisini belirleyecek')).catch(e => toast(e.message, true));
+}
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
 }
@@ -851,7 +968,7 @@ function render_det(){
   const avg = k => avgDays.length ? Math.round(avgDays.reduce((a, x) => a + x[k], 0) / avgDays.length) : null;
   let h = studentSel('loadDet') +
     (s.aktif ? '' : '<div class="card" style="background:#fdeaea">Bu öğrenci pasif. Linki çalışmıyor.</div>') +
-    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '</div>';
+    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
   if((S.dt || 'gun') === 'gun'){
     h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' +
       '<div class="card"><h3>Yedikleri</h3>' + entriesView(d, true) + '</div>' +
