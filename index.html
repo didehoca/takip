@@ -145,6 +145,22 @@ const TOKEN = (function(){
   return t;
 })();
 let ROLE = 'none';
+/* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
+const BUILD = '2026-10-21a';
+function checkUpdate(){
+  fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
+    const m = t.match(/const BUILD = '([^']+)'/);
+    if(!m || m[1] === BUILD) return;
+    let done = ''; try { done = sessionStorage.getItem('dh_upd') || ''; } catch(e) {}
+    if(done === m[1]) return;
+    if(typeof idle === 'function' && !idle()) return;
+    try { sessionStorage.setItem('dh_upd', m[1]); } catch(e) {}
+    const u = new URL(location.href); u.searchParams.set('t', TOKEN); u.searchParams.set('v', m[1]);
+    location.replace(u.toString());
+  }).catch(() => {});
+}
+setTimeout(checkUpdate, 2500);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') checkUpdate(); });
 const OGUNLER = ['Kahvaltı','Ara öğün 1','Öğle','Ara öğün 2','Antrenman öncesi','Antrenman sonrası','Akşam','Gece'];
 const OG_RENK = {'Kahvaltı':'#fff4d6','Ara öğün 1':'#e8f7ee','Öğle':'#e6f2ff','Ara öğün 2':'#f3ecff','Akşam':'#ffe8ee','Gece':'#ece9f7','Su':'#e0f7f4','Antrenman öncesi':'#e3f6f1','Antrenman sonrası':'#fdeee2'};
 const KOSU = ['Easy run','Interval','Tempo run','Long run','Recovery run','Fartlek','Yarış / Test'];
