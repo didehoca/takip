@@ -301,6 +301,7 @@ const ST_VIEWS = {
   bugun: () => render_bugun(),
   ekle: () => render_ekle(),
   foto: () => fotoStart(),
+  saglik: () => { if(S.sg) render_sg(); else wait_(); call('saglik', {}, true).then(r => { S.sg = r; if(S.tab === 'saglik' && idle()) render_sg(); }).catch(e => toast(e.message, true)); },
   olcum: () => { if(S.meas) render_olcum(); else wait_(); call('meas', {}, !!S.meas).then(m => { S.meas = m; if(S.tab === 'olcum' && idle()) render_olcum(); }).catch(() => {}); },
   antrenman: () => { if(S.prog) render_ant(); else wait_(); loadProg(S.prog ? S.prog.week : todayS(), !!S.prog); }
 };
@@ -535,7 +536,8 @@ function delFav(id){
 }
 function render_olcum(){
   const m = S.meas;
-  $('app').innerHTML = '<div class="card row" style="cursor:pointer;background:#fdf3f7" onclick="go(\'foto\')"><b class="sp">📸 İlerleme fotoğraflarım</b><span class="mut">Aç ›</span></div>' +
+  $('app').innerHTML = '<div class="grid g2" style="margin-bottom:12px"><div class="card row" style="cursor:pointer;background:#fdf3f7;margin:0" onclick="go(\'foto\')"><b class="sp">📸 Fotoğraflarım</b><span class="mut">›</span></div>' +
+    '<div class="card row" style="cursor:pointer;background:#f0f7ff;margin:0" onclick="go(\'saglik\')"><b class="sp">🩺 Sağlık durumum</b><span class="mut">›</span></div></div>' +
     '<div class="card"><h3>Özet</h3>' + measCards(m) + '</div>' + measCharts(m) +
     '<div class="card"><h3>Yeni ölçüm</h3><div class="grid g2"><div class="f"><label>Tarih</label><input type="date" id="o_t" value="' + todayS() + '"></div><div class="f"><label>Kilo (kg)</label><input id="o_kilo" inputmode="decimal"></div></div>' +
     '<div class="grid g3">' + [['bel','Bel cm'],['kalca','Kalça cm'],['gogus','Göğüs cm'],['kol','Kol cm'],['uyluk','Uyluk cm'],['yag','Yağ %']].map(x => '<div class="f"><label>' + x[1] + '</label><input id="o_' + x[0] + '" inputmode="decimal"></div>').join('') + '</div>' +
@@ -587,7 +589,7 @@ function zPick(id, cur){
 }
 function render_ant(){
   const p = S.prog;
-  let h = weekNav(p, 'loadProg');
+  let h = weekNav(p, 'loadProg') + '<div class="mut" style="text-align:right;margin:-4px 0 8px;font-size:13px"><a href="#" onclick="go(\'saglik\');return false">🩺 Bir yerin mi ağrıyor? Dide Hoca\'ya bildir ›</a></div>';
   h += '<div class="card"><div class="row"><div class="sp"><b>' + p.done + ' / ' + p.total + '</b> tamamlandı</div>' + (p.avgZorluk ? '<span class="pill" style="background:' + zCol(p.avgZorluk) + ';color:#fff">Ort. zorluk ' + fx(p.avgZorluk, 1) + '</span>' : '') + '</div>' +
     '<div class="bar" style="margin-top:8px"><i style="width:' + (p.total ? p.done / p.total * 100 : 0) + '%;background:var(--ok)"></i></div>' + runSum(p) + '</div>';
   if(p.antrenorNotu) h += '<div class="card" style="background:#eef6ff"><h3>📋 Antrenörünün notu</h3>' + esc(p.antrenorNotu).replace(/\n/g, '<br>') + '</div>';
@@ -932,6 +934,56 @@ function fReset(){
   S._frs = 0;
   fcall('pinSifirla', {sid: S.fsid}).then(() => toast('✓ Öğrencinin PIN\'i sıfırlandı; bir sonraki girişte yenisini belirleyecek')).catch(e => toast(e.message, true));
 }
+/* =================== SAĞLIK / RAHATSIZLIK =================== */
+const SG_TUR = ['Sakatlık / ağrı', 'Hastalık', 'Kronik rahatsızlık', 'Alerji / intolerans', 'İlaç kullanımı', 'Ameliyat', 'Diğer'];
+function sgEt(r){ return (r.bolge ? r.bolge + ' · ' : '') + r.tur + (r.siddet ? ' (' + r.siddet + '/10)' : ''); }
+function sgBanner(l, prog){
+  const a = (l || []).filter(r => r.durum === 'devam'); if(!a.length) return '';
+  return '<div class="card" style="background:#fff3ef;border-color:#f6c9b8"><b>🩺 ' + (prog ? 'Program hazırlarken dikkat — aktif rahatsızlık' : 'Aktif rahatsızlık') + '</b>' +
+    a.map(r => '<div style="margin-top:6px"><b>' + esc(sgEt(r)) + '</b>' + (r.aciklama ? '<div class="mut" style="font-size:13px">' + esc(r.aciklama) + '</div>' : '') + '</div>').join('') + '</div>';
+}
+function sgCard(r, own){
+  const sc = r.siddet ? (r.siddet >= 7 ? 'bad' : r.siddet >= 4 ? 'warn' : 'ok') : '';
+  return '<div class="card"' + (r.durum === 'iyilesti' ? ' style="opacity:.7"' : '') + '><div class="row"><b class="sp">' + esc((r.bolge ? r.bolge + ' · ' : '') + r.tur) + '</b>' +
+    (r.siddet ? '<span class="pill ' + sc + '">şiddet ' + r.siddet + '/10</span>' : '') + (r.durum === 'iyilesti' ? '<span class="pill ok">iyileşti</span>' : '') + '</div>' +
+    '<div class="mut" style="font-size:13px;margin-top:2px">Başlangıç: ' + fmtD(r.baslangic) + (r.guncelleme ? ' · son güncelleme ' + esc(r.guncelleme.slice(0, 10).split('-').reverse().join('.')) : '') + '</div>' +
+    (r.aciklama ? '<div style="margin-top:6px;white-space:pre-wrap">' + esc(r.aciklama) + '</div>' : '') +
+    (own ? '<div class="row" style="margin-top:10px"><button class="btn gh sm" onclick="sgEdit(\'' + r.id + '\')">✎ Düzenle</button>' +
+      (r.durum === 'devam' ? '<button class="btn sec sm" onclick="sgDone(\'' + r.id + '\')">✓ İyileştim</button>' : '<button class="btn gh sm" onclick="sgDone(\'' + r.id + '\',1)">↺ Tekrar başladı</button>') +
+      '<button class="btn gh sm" onclick="sgDel(\'' + r.id + '\')">Sil</button></div>' : '') + '</div>';
+}
+function render_sg(){
+  const l = S.sg || [], e = S.sgE ? l.find(r => r.id === S.sgE) : null, f = e || {tur: 'Sakatlık / ağrı', baslangic: todayS()};
+  const act = l.filter(r => r.durum === 'devam'), past = l.filter(r => r.durum !== 'devam');
+  let h = '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="go(\'olcum\')">‹ Ölçüm</button><b class="sp" style="text-align:center">🩺 Sağlık durumum</b></div>';
+  h += '<div class="card" style="background:#f0f7ff"><div class="mut" style="font-size:14px">Bir sakatlığın, ağrın, hastalığın, alerjin ya da kullandığın bir ilaç varsa buraya yaz. Dide Hoca\'ya hemen bildirim gider ve programını buna göre ayarlar.</div></div>';
+  h += '<div class="card"><h3>' + (e ? 'Rahatsızlığı düzenle' : 'Yeni rahatsızlık bildir') + '</h3>' +
+    '<div class="grid g2"><div class="f"><label>Tür</label><select id="sg_tur">' + SG_TUR.map(t => '<option' + (t === f.tur ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></div>' +
+    '<div class="f"><label>Bölge / ne</label><input id="sg_bolge" maxlength="60" placeholder="ör. sağ diz, bel, grip" value="' + esc(f.bolge || '') + '"></div></div>' +
+    '<div class="grid g2"><div class="f"><label>Ne zamandan beri?</label><input type="date" id="sg_bas" value="' + (f.baslangic || todayS()) + '"></div>' +
+    '<div class="f"><label>Şiddet (1 hafif – 10 çok kötü)</label><select id="sg_sd"><option value="">Seçme</option>' + [1,2,3,4,5,6,7,8,9,10].map(i => '<option' + (f.siddet === i ? ' selected' : '') + '>' + i + '</option>').join('') + '</select></div></div>' +
+    '<div class="f"><label>Detaylar</label><textarea id="sg_ac" rows="4" maxlength="1000" placeholder="Nasıl oldu? Hangi harekette ağrıyor? Doktora gittin mi, ne dedi? Kullandığın ilaç var mı?">' + esc(f.aciklama || '') + '</textarea></div>' +
+    '<div class="row"><button class="btn sp" onclick="sgSave()">' + (e ? 'Güncelle' : 'Dide Hoca\'ya bildir') + '</button>' + (e ? '<button class="btn gh" onclick="S.sgE=null;render_sg()">Vazgeç</button>' : '') + '</div></div>';
+  if(act.length) h += '<h3 style="margin:16px 4px 8px">Devam edenler</h3>' + act.map(r => sgCard(r, true)).join('');
+  if(past.length) h += '<h3 style="margin:16px 4px 8px">Geçmiş</h3>' + past.map(r => sgCard(r, true)).join('');
+  $('app').innerHTML = h;
+}
+function sgEdit(id){ S.sgE = id; render_sg(); window.scrollTo(0, 0); }
+function sgSave(){
+  const e = S.sgE ? (S.sg || []).find(r => r.id === S.sgE) : null;
+  const p = {id: e ? e.id : '', tur: val('sg_tur'), bolge: val('sg_bolge').trim(), baslangic: val('sg_bas'), siddet: val('sg_sd'), aciklama: val('sg_ac').trim(), durum: e ? e.durum : 'devam'};
+  if(!p.bolge && !p.aciklama){ toast('Rahatsızlığını kısaca yaz', true); return; }
+  call('saveSaglik', p).then(r => { S.sg = r; S.sgE = null; toast(e ? '✓ Güncellendi' : '✓ Dide Hoca\'ya bildirildi'); render_sg(); }).catch(() => {});
+}
+function sgDone(id, back){
+  const r = (S.sg || []).find(x => x.id === id); if(!r) return;
+  call('saveSaglik', Object.assign({}, r, {durum: back ? 'devam' : 'iyilesti'})).then(l => { S.sg = l; toast(back ? 'Tekrar aktif' : '✓ Geçmiş olsun! İyileşti olarak işaretlendi'); render_sg(); }).catch(() => {});
+}
+function sgDel(id){
+  if(S._sgd !== id){ S._sgd = id; toast('Silmek için tekrar Sil\'e dokun'); setTimeout(() => { if(S._sgd === id) S._sgd = null; }, 3000); return; }
+  S._sgd = null;
+  call('deleteSaglik', {id}).then(l => { S.sg = l; toast('Silindi'); render_sg(); }).catch(() => {});
+}
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
 }
@@ -968,8 +1020,8 @@ function render_det(){
   const avgDays = d.week.filter(x => x.kcal > 0);
   const avg = k => avgDays.length ? Math.round(avgDays.reduce((a, x) => a + x[k], 0) / avgDays.length) : null;
   let h = studentSel('loadDet') +
-    (s.aktif ? '' : '<div class="card" style="background:#fdeaea">Bu öğrenci pasif. Linki çalışmıyor.</div>') +
-    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
+    (s.aktif ? '' : '<div class="card" style="background:#fdeaea">Bu öğrenci pasif. Linki çalışmıyor.</div>') + sgBanner(s.saglik) +
+    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
   if((S.dt || 'gun') === 'gun'){
     h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' +
       '<div class="card"><h3>Yedikleri</h3>' + entriesView(d, true) + '</div>' +
@@ -978,6 +1030,9 @@ function render_det(){
       d.week.slice().reverse().map(x => { const pc = t.kcal && x.kcal ? x.kcal / t.kcal : null; return '<tr><td>' + fmtD(x.tarih, true) + '</td><td>' + (x.kcal ? '<span class="pill ' + pctCls(pc) + '">' + Math.round(x.kcal) + '</span>' : '–') + '</td><td>' + (x.p ? Math.round(x.p) : '–') + '</td><td>' + (x.k ? Math.round(x.k) : '–') + '</td><td>' + (x.y ? Math.round(x.y) : '–') + '</td><td>' + (x.su || '–') + '</td></tr>'; }).join('') +
       '<tr><th>Ort.</th><th>' + (avg('kcal') ?? '–') + '</th><th>' + (avg('p') ?? '–') + '</th><th>' + (avg('k') ?? '–') + '</th><th>' + (avg('y') ?? '–') + '</th><th>' + (avg('su') ?? '–') + '</th></tr>' +
       '<tr><td class="mut">Hedef</td><td class="mut">' + (t.kcal || '–') + '</td><td class="mut">' + (t.p || '–') + '</td><td class="mut">' + (t.k || '–') + '</td><td class="mut">' + (t.y || '–') + '</td><td class="mut">' + (t.su || '–') + '</td></tr></table></div><div class="mut">Ortalama sadece giriş yapılan günlerden hesaplanır.</div></div>';
+  } else if(S.dt === 'saglik'){
+    const l = s.saglik || [];
+    h += l.length ? l.map(r => sgCard(r, false)).join('') : '<div class="card empty">Bu öğrenci herhangi bir rahatsızlık bildirmedi.</div>';
   } else if(S.dt === 'olcum'){
     h += '<div class="card"><h3>Özet</h3>' + measCards(s.meas) + '</div>' + measCharts(s.meas) + '<div class="card"><h3>Tüm ölçümler</h3>' + measTable(s.meas, false) + '</div>';
   } else {
@@ -1012,7 +1067,7 @@ function loadCProg(w, sid){
 function render_cprog(){
   const p = S.cprog;
   if(p.sid !== S.sid) return;
-  let h = studentSel('chgProgStu') + weekNav(p, 'chgProgWeek');
+  let h = studentSel('chgProgStu') + weekNav(p, 'chgProgWeek') + sgBanner(p.saglik, true);
   if(!S.edit.length) h += '<div class="card"><div class="empty">Bu hafta için program yok.</div><button class="btn sec blk" onclick="copyPrev()">↺ Geçen haftanın programını kopyala</button></div>';
   for(let g = 1; g <= 7; g++){
     const idx = S.edit.map((r, i) => r.gun === g ? i : -1).filter(i => i >= 0);
