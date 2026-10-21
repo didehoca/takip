@@ -101,6 +101,9 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .run .coach{background:#e2f6f1}
 .coach{background:#eef6ff;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .stu{background:#fff4ec;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
+.seg{display:inline-flex;background:#f6eef2;border-radius:10px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;padding:5px 11px;font-size:12.5px;border-radius:8px;color:var(--mut);cursor:pointer;font-weight:600}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .day h4{margin:12px 0 6px;font-size:14px;color:#9a5a75}
 .z{display:flex;gap:3px}
 .z button{flex:1 1 0;min-width:0;height:32px;padding:0;border-radius:9px;border:2px solid transparent;cursor:pointer;font-weight:700;color:#fff;font-size:12px}
@@ -150,7 +153,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-21b';
+const BUILD = '2026-10-21c';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -199,6 +202,41 @@ function fmtD(s, wd){ if(!s) return '–'; const d = pd(s); return d.getDate() +
 function todayS(){ return ds(new Date()); }
 function defOgun(){ const h = new Date().getHours(); return h < 11 ? 'Kahvaltı' : h < 13 ? 'Ara öğün 1' : h < 16 ? 'Öğle' : h < 18 ? 'Ara öğün 2' : h < 22 ? 'Akşam' : 'Gece'; }
 function isDone(r){ return String(r.yapilan_set || '') !== '' || String(r.yapilan_km || '') !== '' || String(r.yapilan_sure || '') !== ''; }
+/* hareket ölçüsü: tk = set×tekrar, sn = set×saniye, dk = dakika (kardiyo) */
+const EX_SN = ['Plank','Side Plank','Hollow Hold','Battle Rope'];
+function exGuess(nm){
+  nm = String(nm || '');
+  if(EX_LIB['Kardiyo'].indexOf(nm) >= 0 || /bisiklet|yürüyüş|yuruyus|eliptik|kürek makine|stair|merdiven|yüzme|koşu bandı|kardiyo|cardio|spinning|walking|cycling|rowing/i.test(nm)) return 'dk';
+  if(EX_SN.indexOf(nm) >= 0 || EX_LIB['Mobilite & esneme'].indexOf(nm) >= 0 || /plank|hold|stretch|esneme|asılı dur|dead hang|wall sit|duvarda otur/i.test(nm)) return 'sn';
+  return 'tk';
+}
+function unitless(t){ return String(t || '').replace(/\s*(dk|sn|tekrar)\s*$/i, '').trim(); }
+function exMod(r){
+  if(r.mod) return r.mod;
+  const t = String(r.tekrar || '').trim().toLowerCase();
+  if(/dk$/.test(t)) return 'dk'; if(/sn$/.test(t)) return 'sn'; if(/tekrar$/.test(t)) return 'tk';
+  return (!t || /^[\d\s\-–,.]+$/.test(t)) ? exGuess(r.egzersiz) : 'tk';
+}
+function tkNorm(r){
+  if(r.tur === 'kosu') return r.tekrar || '';
+  const m = exMod(r), v = unitless(r.tekrar);
+  if(!v) return '';
+  if(m === 'dk') return v + ' dk';
+  if(m === 'sn') return v + ' sn';
+  return exGuess(r.egzersiz) !== 'tk' && /^[\d\s\-–,.]+$/.test(v) ? v + ' tekrar' : v;
+}
+function exPlan(r){
+  const m = exMod(r), v = esc(unitless(r.tekrar) || '–');
+  if(m === 'dk') return '⏱ ' + (r.set ? esc(r.set) + ' × ' : '') + v + ' dk';
+  if(m === 'sn') return esc(r.set || '–') + ' set × ' + v + ' sn';
+  return esc(r.set || '–') + ' set × ' + esc(r.tekrar || '–');
+}
+function exRes(r){
+  const m = exMod(r), z = r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '', nt = r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '';
+  if(m === 'dk') return '⏱ Öğrenci: ' + (r.yapilan_sure ? esc(r.yapilan_sure) + ' dk' : '–') + (r.yapilan_km ? ' · ' + esc(r.yapilan_km) + ' km' : '') + (r.agirlik ? ' · ' + esc(r.agirlik) : '') + z + nt;
+  return '🏋️ Öğrenci: ' + esc(r.yapilan_set || '–') + ' set · ' + esc(r.yapilan_tekrar || '–') + (m === 'sn' ? ' sn' : ' tekrar') + ' · ' + esc(r.agirlik || '–') + z + nt;
+}
+function exModSet(i, k){ const r = S.edit[i]; r.tekrar = unitless(r.tekrar); ed(i, 'mod', k); render_cprog(); }
 function normPace(s){ s = String(s || '').trim().replace(/[.,]/g, ':'); if(/^\d+$/.test(s)) s += ':00'; return s; }
 function secs(s){ s = String(s || '').trim().replace(/[.,]/g, ':'); if(!s) return 0; const p = s.split(':').map(Number); if(p.some(x => isNaN(x))) return 0; return p.length === 1 ? p[0] * 60 : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 3600 + p[1] * 60 + p[2]; }
 function mmss(t){ t = Math.round(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -635,16 +673,25 @@ function render_ant(){
     const fv = (r, f) => { const d = S.draft[r.id]; return d && d[f] !== undefined ? d[f] : r[f]; };
     h += '<div class="card day"><div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3>' +
       (saved && !dirty ? '<span class="pill ok">✓ kaydedildi</span>' : '<button class="btn gh sm" onclick="fillPlan(' + g + ')">Programdaki gibi doldur</button>') + '</div>' + rs.map(r => r.tur === 'kosu' ? runCard(r, fv, isD) :
-      '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (r.yapilan_set !== '' && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
-      '<div class="coach">🎯 ' + esc(r.set || '–') + ' set × ' + esc(r.tekrar || '–') + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
+      '<div class="ex"><div class="row"><div class="t sp">' + esc(r.egzersiz) + '</div>' + (isDone(r) && !isD(r) ? '<span class="pill ok">✓</span>' : '') + '</div>' +
+      '<div class="coach">🎯 ' + exPlan(r) + (r.antrenor_notu ? ' · ' + esc(r.antrenor_notu) : '') + '</div>' +
       (r.alternatif ? '<div class="mut" style="font-size:13px;margin-top:2px">↺ Yapamazsan alternatif: <b>' + esc(r.alternatif) + '</b></div>' : '') +
-      '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + r.id + '" inputmode="numeric" value="' + esc(fv(r, 'yapilan_set')) + '" oninput="dr(\'' + r.id + '\',\'yapilan_set\',this.value)"></div><div class="f"><label>Tekrar</label><input id="yt_' + r.id + '" value="' + esc(fv(r, 'yapilan_tekrar')) + '" placeholder="12,10,8" oninput="dr(\'' + r.id + '\',\'yapilan_tekrar\',this.value)"></div><div class="f"><label>Ağırlık</label><input id="ya_' + r.id + '" value="' + esc(fv(r, 'agirlik')) + '" placeholder="kg" oninput="dr(\'' + r.id + '\',\'agirlik\',this.value)"></div></div>' +
+      exInputs(r, fv) +
       '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + r.id, fv(r, 'zorluk')) +
       '<div class="f" style="margin-top:8px;margin-bottom:0"><input id="yn_' + r.id + '" value="' + esc(fv(r, 'ogrenci_notu')) + '" placeholder="Notun (ör. son sette zorlandım)" oninput="dr(\'' + r.id + '\',\'ogrenci_notu\',this.value)"></div></div>').join('') +
       '<button id="sv_' + g + '" class="btn blk" style="margin-top:4px" onclick="saveDayRes(' + g + ')">' + saveLbl(g, dirty) + '</button></div>';
   }
   if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="saveSNote()">Notu kaydet</button></div>';
   $('app').innerHTML = h;
+}
+function exInputs(r, fv){
+  const id = r.id, q = "'" + id + "'", m = exMod(r);
+  if(m === 'dk') return '<div class="grid g3"><div class="f"><label>Süre (dk)</label><input id="rs_' + id + '" inputmode="numeric" placeholder="' + esc(unitless(r.tekrar) || '30') + '" value="' + esc(fv(r, 'yapilan_sure')) + '" oninput="dr(' + q + ',\'yapilan_sure\',this.value)"></div>' +
+    '<div class="f"><label>Mesafe (km)</label><input id="rk_' + id + '" inputmode="decimal" placeholder="isteğe bağlı" value="' + esc(fv(r, 'yapilan_km')) + '" oninput="dr(' + q + ',\'yapilan_km\',this.value)"></div>' +
+    '<div class="f"><label>Seviye / eğim</label><input id="ya_' + id + '" placeholder="ör. 8" value="' + esc(fv(r, 'agirlik')) + '" oninput="dr(' + q + ',\'agirlik\',this.value)"></div></div>';
+  return '<div class="grid g3"><div class="f"><label>Yapılan set</label><input id="ys_' + id + '" inputmode="numeric" value="' + esc(fv(r, 'yapilan_set')) + '" oninput="dr(' + q + ',\'yapilan_set\',this.value)"></div>' +
+    '<div class="f"><label>' + (m === 'sn' ? 'Süre (sn)' : 'Tekrar') + '</label><input id="yt_' + id + '" value="' + esc(fv(r, 'yapilan_tekrar')) + '" placeholder="' + (m === 'sn' ? '45,40,30' : '12,10,8') + '" oninput="dr(' + q + ',\'yapilan_tekrar\',this.value)"></div>' +
+    '<div class="f"><label>Ağırlık</label><input id="ya_' + id + '" value="' + esc(fv(r, 'agirlik')) + '" placeholder="kg" oninput="dr(' + q + ',\'agirlik\',this.value)"></div></div>';
 }
 function runCard(r, fv, isD){
   const id = r.id, q = "'" + id + "'";
@@ -694,9 +741,12 @@ function fillPlan(g){
     if(r.tur === 'kosu'){
       const cur = d.yapilan_km !== undefined ? d.yapilan_km : r.yapilan_km;
       if(String(cur || '').trim() === ''){ d.yapilan_km = String(r.hedef_km || ''); d.yapilan_pace = String(r.hedef_pace || ''); S.draft[r.id] = d; }
+    } else if(exMod(r) === 'dk'){
+      const cur = d.yapilan_sure !== undefined ? d.yapilan_sure : r.yapilan_sure;
+      if(String(cur || '').trim() === ''){ d.yapilan_sure = unitless(r.tekrar); S.draft[r.id] = d; }
     } else {
       const cur = d.yapilan_set !== undefined ? d.yapilan_set : r.yapilan_set;
-      if(String(cur || '').trim() === ''){ d.yapilan_set = String(r.set || ''); d.yapilan_tekrar = String(r.tekrar || ''); S.draft[r.id] = d; }
+      if(String(cur || '').trim() === ''){ d.yapilan_set = String(r.set || ''); d.yapilan_tekrar = unitless(r.tekrar); S.draft[r.id] = d; }
     }
   });
   saveDrafts(); render_ant(); toast('Programdaki hedefler dolduruldu, gerekirse düzelt');
@@ -1305,10 +1355,10 @@ function render_cprog(){
     const idx = S.edit.map((r, i) => r.gun === g ? i : -1).filter(i => i >= 0);
     h += '<div class="card day"><div class="row"><h3 class="sp" style="margin:0">' + GUN[g - 1] + ' <span class="mut">' + fmtD(addD(p.week, g - 1)) + '</span></h3><div class="row" style="gap:6px"><button class="btn sec sm" onclick="addEx(' + g + ')">＋ Hareket</button><button class="btn sm" style="background:#d9f3ee;color:#1f7a6a" onclick="addEx(' + g + ',\'kosu\')">＋ Koşu</button></div></div>' +
       idx.map(i => { const r = S.edit[i]; if(r.tur === 'kosu') return runEd(r, i); return '<div class="ex" style="margin-top:8px"><div class="row"><button class="exsel sp" onclick="exPick(' + i + ')">' + (r.egzersiz ? '<b>' + esc(r.egzersiz) + '</b>' : '<span class="mut">＋ Hareket seç</span>') + '<span class="mut">▾</span></button><button class="x" onclick="rmEx(' + i + ')">✕</button></div>' +
-        '<div class="grid g3" style="margin-top:6px"><div><label>Set</label><input inputmode="numeric" value="' + esc(r.set) + '" oninput="ed(' + i + ',\'set\',this.value)"></div><div><label>Tekrar</label><input value="' + esc(r.tekrar) + '" placeholder="10-12" oninput="ed(' + i + ',\'tekrar\',this.value)"></div><div><label>Sıra</label><div class="row" style="gap:4px"><button class="btn gh sm" onclick="mv(' + i + ',-1)">↑</button><button class="btn gh sm" onclick="mv(' + i + ',1)">↓</button></div></div></div>' +
-        '<div style="margin-top:6px"><input placeholder="Not (ör. tempo 3-1-1, 90 sn dinlenme)" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
+        exEdGrid(r, i) + '<div><label>Sıra</label><div class="row" style="gap:4px"><button class="btn gh sm" onclick="mv(' + i + ',-1)">↑</button><button class="btn gh sm" onclick="mv(' + i + ',1)">↓</button></div></div></div>' +
+        '<div style="margin-top:6px"><input placeholder="' + (exMod(r) === 'dk' ? 'Not (ör. eğim 12 hız 5 · nabız 120-140)' : 'Not (ör. tempo 3-1-1, 90 sn dinlenme)') + '" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
         '<div style="margin-top:6px"><input list="exlist" placeholder="↺ Alternatif (yapamazsa, isteğe bağlı)" value="' + esc(r.alternatif || '') + '" oninput="ed(' + i + ',\'alternatif\',this.value)"></div>' +
-        (r.yapilan_set !== undefined && (r.yapilan_set || r.agirlik || r.zorluk || r.ogrenci_notu) ? '<div class="stu">🏋️ Öğrenci: ' + esc(r.yapilan_set || '–') + ' set · ' + esc(r.yapilan_tekrar || '–') + ' tekrar · ' + esc(r.agirlik || '–') + (r.zorluk ? ' · <span class="pill" style="background:' + zCol(r.zorluk) + ';color:#fff">Zorluk ' + esc(r.zorluk) + '</span>' : '') + (r.ogrenci_notu ? '<br>💬 ' + esc(r.ogrenci_notu) : '') + '</div>' : '') +
+        (r.yapilan_set !== undefined && (isDone(r) || r.agirlik || r.zorluk || r.ogrenci_notu) ? '<div class="stu">' + exRes(r) + '</div>' : '') +
         '</div>'; }).join('') + '</div>';
   }
   h += '<datalist id="exlist">' + exAll().map(x => '<option value="' + esc(x[1]) + '">').join('') + '</datalist>';
@@ -1318,11 +1368,18 @@ function render_cprog(){
     '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
   $('app').innerHTML = h;
 }
+function exEdGrid(r, i){
+  const m = exMod(r), L = {tk: 'Tekrar', sn: 'Süre (sn)', dk: 'Süre (dk)'}, P = {tk: '10-12', sn: '45', dk: '30'};
+  return '<div class="row" style="margin-top:8px;gap:8px"><span class="mut" style="font-size:12.5px">Ölçü</span><div class="seg">' +
+    [['tk', 'Tekrar'], ['sn', 'Saniye'], ['dk', 'Dakika']].map(x => '<button class="' + (x[0] === m ? 'on' : '') + '" onclick="exModSet(' + i + ',\'' + x[0] + '\')">' + x[1] + '</button>').join('') + '</div></div>' +
+    '<div class="grid g3" style="margin-top:6px"><div><label>' + (m === 'dk' ? 'Set <span class="mut">(ops.)</span>' : 'Set') + '</label><input inputmode="numeric" placeholder="' + (m === 'dk' ? '–' : '') + '" value="' + esc(r.set) + '" oninput="ed(' + i + ',\'set\',this.value)"></div>' +
+    '<div><label>' + L[m] + '</label><input' + (m === 'dk' ? ' inputmode="numeric"' : '') + ' value="' + esc(unitless(r.tekrar)) + '" placeholder="' + P[m] + '" oninput="ed(' + i + ',\'tekrar\',this.value)"></div>';
+}
 function guardDirty(){ return !S.dirty || confirmLike(); }
 function confirmLike(){ if(S._dc){ S._dc = false; return true; } S._dc = true; toast('Kaydedilmemiş değişiklik var. Yine de geçmek için tekrar dokun.', true); setTimeout(() => S._dc = false, 4000); return false; }
 function chgProgStu(id){ if(!guardDirty()){ render_cprog(); return; } loadCProg(S.cprog.week, id); }
 function chgProgWeek(w){ if(!guardDirty()) return; loadCProg(w); }
-function ed(i, k, v){ S.edit[i][k] = v; if(!S.dirty){ S.dirty = true; const b = document.querySelector('#app .btn.blk[onclick="saveProg()"]'); if(b) b.textContent = '💾 Programı kaydet (değişiklik var)'; } }
+function ed(i, k, v){ if(k === 'tekrar' && !S.edit[i].mod && S.edit[i].tur !== 'kosu') S.edit[i].mod = exMod(S.edit[i]); S.edit[i][k] = v; if(!S.dirty){ S.dirty = true; const b = document.querySelector('#app .btn.blk[onclick="saveProg()"]'); if(b) b.textContent = '💾 Programı kaydet (değişiklik var)'; } }
 function addEx(g, tur){ S.edit.push({gun: g, tur: tur === 'kosu' ? 'kosu' : 'kuvvet', egzersiz: '', set: '', tekrar: '', antrenor_notu: '', alternatif: '', kosu_tipi: tur === 'kosu' ? 'Easy run' : '', hedef_km: '', hedef_pace: ''}); S.dirty = true; render_cprog(); if(tur !== 'kosu') exPick(S.edit.length - 1, true); }
 function runEd(r, i){
   const tip = r.kosu_tipi || 'Easy run', opts = KOSU.indexOf(tip) < 0 ? KOSU.concat([tip]) : KOSU;
@@ -1374,7 +1431,7 @@ function pkList(){
   el.innerHTML = l.length ? l.map((x, k) => '<div class="pkit' + (x[1] === cur ? ' on' : '') + '" onclick="pkSel(' + k + ')"><span>' + esc(x[1]) + '</span><span class="mut" style="font-size:12px">' + esc(x[0]) + '</span></div>').join('')
     : '<div class="empty">Bulunamadı. Aşağıdan elle yazabilirsin.</div>';
 }
-function pkSet(name){ const r = S.edit[S.pickI]; if(!r) return; r.egzersiz = name; S.dirty = true; S.pickNew = false; pkClose(); render_cprog(); }
+function pkSet(name){ const r = S.edit[S.pickI]; if(!r) return; r.egzersiz = name; delete r.mod; S.dirty = true; S.pickNew = false; pkClose(); render_cprog(); }
 function pkSel(k){ pkSet(S._pk[k]); }
 function pkManual(){ const v = (document.getElementById('pkm').value || '').trim(); if(!v){ toast('Hareketin adını yaz', true); return; } pkSet(v); }
 function pkClose(){
@@ -1387,7 +1444,7 @@ function mv(i, d){
   if(to === undefined) return; const t = S.edit[i]; S.edit[i] = S.edit[to]; S.edit[to] = t; S.dirty = true; render_cprog();
 }
 function saveProg(){
-  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: r.tekrar, antrenor_notu: r.antrenor_notu, alternatif: r.tur === 'kosu' ? '' : (r.alternatif || ''), tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
+  call('saveProgram', {sid: S.sid, week: S.cprog.week, rows: S.edit.map(r => ({id: r.id || '', gun: r.gun, egzersiz: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : r.egzersiz, set: r.set, tekrar: tkNorm(r), antrenor_notu: r.antrenor_notu, alternatif: r.tur === 'kosu' ? '' : (r.alternatif || ''), tur: r.tur || 'kuvvet', kosu_tipi: r.tur === 'kosu' ? (r.kosu_tipi || 'Easy run') : '', hedef_km: r.hedef_km || '', hedef_pace: normPace(r.hedef_pace)}))})
     .then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Program kaydedildi' + nTxt(r)); render_cprog(); });
 }
 function copyPrev(){ call('copyProgram', {sid: S.sid, week: S.cprog.week}).then(r => { S.cprog = r; S.cprog.sid = S.sid; S.edit = r.rows.map(x => Object.assign({}, x)); S.dirty = false; toast('✓ Geçen hafta kopyalandı' + nTxt(r)); render_cprog(); }); }
