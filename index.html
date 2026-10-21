@@ -782,6 +782,7 @@ function uneat(iid){
 /* =================== ANTRENÖR =================== */
 const C_VIEWS = {
   ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
+  odeme: () => { if(S.odList || S.odSid) render_odeme(); else wait_(); odLoad(); },
   cfoto: () => { if(!S.fsid && S.ov && S.ov.students.length) S.fsid = S.ov.students[0].id; fotoStart(); },
   rapor: () => { if(S.wk) render_rapor(); else wait_(); loadRapor(S.wk ? S.wk.week : lastWeekStart()); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
@@ -796,7 +797,7 @@ const C_VIEWS = {
 };
 function cInit(r){
   $('sub').textContent = 'Antrenör Paneli';
-  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['ayarlar','⚙︎','Ayarlar']]);
+  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['odeme','₺','Ödeme'],['ayarlar','⚙︎','Ayarlar']]);
   S.ov = r; S.ovTs = Date.now();
   go(new URLSearchParams(location.search).get('v') === 'rapor' ? 'rapor' : 'ozet');
   pushInit('coach');
@@ -1035,38 +1036,68 @@ function render_rozet(){
 /* =================== PAKET VE ÖDEME (antrenör) =================== */
 function tl(v){ return Math.round(n(v)).toLocaleString('tr-TR') + ' ₺'; }
 function gunTxt(g, gec){ return g === 0 ? 'bugün' : g > 0 ? g + ' gün sonra' : (-g) + ' gün ' + (gec || 'önce'); }
-function pkLoad(sid){ call('paket', {sid}, true).then(r => { S.pk = Object.assign(r, {sid}); if(S.tab === 'ogrenci' && S.dt === 'paket' && S.sid === sid && idle()) render_det(); }).catch(() => {}); }
+function pkLoad(sid){ call('paket', {sid}, true).then(r => { S.pk = Object.assign(r, {sid}); if(S.tab === 'odeme' && S.odSid === sid && idle()) render_odeme(); }).catch(() => {}); }
+function odLoad(){ call('paketler', {}, true).then(r => { S.odList = r; if(S.tab === 'odeme' && !S.odSid && idle()) render_odeme(); }).catch(() => {}); }
+function odOpen(id){ S.odSid = id; S.pkF = null; S.pkPay = false; render_odeme(); window.scrollTo(0, 0); }
+function odBack(){ S.odSid = null; S.pkF = null; S.pkPay = false; render_odeme(); odLoad(); }
+function pkRe(){ render_odeme(); }
+function pkChanged(r){ S.pk = Object.assign(r, {sid: S.odSid}); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }
+function render_odeme(){
+  if(S.odSid){
+    const st = (S.odList && S.odList.students.find(x => x.id === S.odSid)) || (S.ov.students.find(x => x.id === S.odSid)) || {ad: ''};
+    $('app').innerHTML = '<div class="row" style="margin-bottom:10px"><button class="btn gh sm" onclick="odBack()">‹ Ödemeler</button><b class="sp" style="text-align:center">' + esc(st.ad) + '</b></div>' + pkView({id: S.odSid});
+    return;
+  }
+  const L = S.odList; if(!L){ wait_(); return; }
+  const z = L.ozet;
+  let h = '<div class="mut" style="font-size:12px;margin:0 4px 8px">🔒 Bu sekmeyi sadece sen görürsün; öğrenciler göremez.</div>' +
+    '<div class="grid g3" style="margin-bottom:12px"><div class="stat"><b>' + z.aktifUye + '</b><span>Aktif üyelik</span></div><div class="stat"><b style="color:' + (z.alacak > 0 ? 'var(--bad)' : 'var(--ok)') + '">' + tl(z.alacak) + '</b><span>Bekleyen ödeme</span></div><div class="stat"><b style="color:var(--ok)">' + tl(z.buAy) + '</b><span>Bu ay tahsil</span></div></div>';
+  h += L.students.map(s => {
+    const p = s.paket;
+    if(!p) return '<div class="card row" style="cursor:pointer' + (s.aktif ? '' : ';opacity:.6') + '" onclick="odOpen(\'' + s.id + '\')"><div class="sp"><b>' + esc(s.ad) + '</b><div class="mut" style="font-size:13px">Üyelik girilmedi</div></div><span class="btn sec sm">＋ Üyelik</span></div>';
+    const og = p.odemeGun, odTxt = p.kalanTutar <= 0 ? '<span style="color:var(--ok)">✓ Ödendi</span>' : p.odemeTarihi ? '<span style="color:' + (og < 0 ? 'var(--bad)' : og <= 3 ? 'var(--warn)' : 'var(--ink)') + '">💳 ' + tl(p.kalanTutar) + ' · ' + fmtD(p.odemeTarihi) + ' (' + gunTxt(og, 'gecikti') + ')</span>' : '<span style="color:var(--bad)">💳 ' + tl(p.kalanTutar) + ' kalan</span>';
+    const durum = p.bitti ? '<span class="pill bad">bitti</span>' : !p.basladi ? '<span class="pill warn">başlamadı</span>' : '<span class="pill ' + (p.kalanGun <= 7 ? 'warn' : 'ok') + '">' + p.kalanGun + ' gün kaldı</span>';
+    return '<div class="card" style="cursor:pointer' + (s.aktif ? '' : ';opacity:.6') + '" onclick="odOpen(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b>' + durum + '</div>' +
+      '<div class="mut" style="font-size:13px;margin:4px 0 6px">' + (p.tur ? '<span class="pill" style="background:' + (p.tur === 'Online Coaching' ? '#e8f1ff;color:#3a6fb0' : '#fde7ef;color:#b04f6e') + '">' + esc(p.tur) + '</span> ' : '') + esc(p.ad) + ' · ' + fmtD(p.baslangic) + ' – ' + fmtD(p.bitis) + '</div>' +
+      '<div class="bar"><i style="width:' + Math.round(p.gecen / p.gun * 100) + '%;background:var(--pri)"></i></div>' +
+      '<div class="row" style="margin-top:6px;font-size:13px"><span class="sp mut">' + p.gecen + '/' + p.gun + ' gün</span>' + odTxt + '</div></div>';
+  }).join('');
+  $('app').innerHTML = h;
+}
 function pkView(s){
   if(!S.pk || S.pk.sid !== s.id){ pkLoad(s.id); return '<div class="empty">Yükleniyor…</div>'; }
   const a = S.pk.aktif, f = S.pkF;
-  let h = '<div class="mut" style="font-size:12px;margin:-4px 4px 8px">🔒 Bu bölümü sadece sen görürsün; öğrenci göremez.</div>';
+  let h = '';
   if(f) return h + pkForm(f);
-  if(!a) return h + '<div class="card empty">Bu öğrenci için paket girilmedi.<br><button class="btn" style="margin-top:10px" onclick="pkNew()">＋ Paket ekle</button></div>';
+  if(!a) return h + '<div class="card empty">Bu öğrencinin üyeliği girilmedi.<br><button class="btn" style="margin-top:10px" onclick="pkNew()">＋ Üyelik ekle</button></div>';
   const durum = a.bitti ? '<span class="pill bad">bitti</span>' : !a.basladi ? '<span class="pill warn">başlamadı</span>' : a.kalanGun <= 7 ? '<span class="pill warn">' + a.kalanGun + ' gün kaldı</span>' : '<span class="pill ok">aktif</span>';
   const og = a.odemeGun, ogCol = a.kalanTutar <= 0 ? 'var(--ok)' : og === null ? 'var(--mut)' : og < 0 ? 'var(--bad)' : og <= 3 ? 'var(--warn)' : 'var(--ink)';
   h += '<div class="card"><div class="row"><h3 class="sp" style="margin:0">' + esc(a.ad) + '</h3>' + durum + '</div>' +
+    (a.tur ? '<span class="pill" style="margin-top:6px;display:inline-block;background:' + (a.tur === 'Online Coaching' ? '#e8f1ff;color:#3a6fb0' : '#fde7ef;color:#b04f6e') + '">' + (a.tur === 'Online Coaching' ? '💻 ' : '🤝 ') + esc(a.tur) + '</span>' : '') +
     '<div class="mut" style="margin:6px 0">' + fmtD(a.baslangic) + ' – ' + fmtD(a.bitis) + ' · ' + a.gun + ' günlük üyelik</div>' +
     '<div class="bar"><i style="width:' + Math.round(a.gecen / a.gun * 100) + '%;background:var(--pri)"></i></div>' +
     '<div class="row mut" style="font-size:13px;margin-top:4px"><span class="sp">' + a.gecen + ' gün geçti</span><b style="color:var(--ink)">' + (a.bitti ? 'Paket bitti' : a.kalanGun + ' gün kaldı') + '</b></div>' +
     '<div class="grid g3" style="margin-top:12px"><div class="stat"><b>' + tl(a.ucret) + '</b><span>Ücret</span></div><div class="stat"><b style="color:var(--ok)">' + tl(a.odenen) + '</b><span>Ödenen</span></div><div class="stat"><b style="color:' + (a.kalanTutar > 0 ? 'var(--bad)' : 'var(--ok)') + '">' + tl(a.kalanTutar) + '</b><span>Kalan</span></div></div>' +
     '<div style="margin-top:10px;font-weight:600;color:' + ogCol + '">' + (a.kalanTutar <= 0 ? '✓ Ödemesi tamamlandı' : a.odemeTarihi ? '💳 Sonraki ödeme: ' + fmtD(a.odemeTarihi, true) + ' (' + gunTxt(og, 'gecikti') + ')' : '💳 Ödeme tarihi girilmedi') + '</div>' +
     (a.not ? '<div class="mut" style="margin-top:6px">📝 ' + esc(a.not) + '</div>' : '') +
-    '<div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn sm" onclick="pkPay()">＋ Ödeme ekle</button><button class="btn gh sm" onclick="pkEdit()">✎ Düzenle</button><button class="btn gh sm" onclick="pkNew(1)">↻ Yeni paket</button></div>' +
+    '<div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn sm" onclick="pkPay()">＋ Ödeme ekle</button><button class="btn gh sm" onclick="pkEdit()">✎ Düzenle</button><button class="btn gh sm" onclick="pkNew(1)">↻ Yenile / yeni üyelik</button></div>' +
     (S.pkPay ? pkPayForm(a) : '') + '</div>';
   h += '<div class="card"><h3>Ödemeler</h3>' + (a.odemeler.length ? a.odemeler.map(o => '<div class="ent"><div class="n"><div>' + tl(o.tutar) + '</div><div class="mut">' + fmtD(o.tarih, true) + (o.not ? ' · ' + esc(o.not) : '') + '</div></div><button class="x" onclick="pkDelPay(\'' + o.id + '\')">✕</button></div>').join('') : '<div class="empty">Henüz ödeme girilmedi.</div>') + '</div>';
   if(S.pk.gecmis.length) h += '<div class="card"><h3>Geçmiş paketler</h3>' + S.pk.gecmis.map(p => '<div class="ent"><div class="n"><div>' + esc(p.ad) + '</div><div class="mut">' + fmtD(p.baslangic) + ' – ' + fmtD(p.bitis) + ' · ' + tl(p.ucret) + (p.kalanTutar > 0 ? ' · <span style="color:var(--bad)">' + tl(p.kalanTutar) + ' kalan</span>' : ' · ödendi') + '</div></div></div>').join('') + '</div>';
-  h += '<button class="btn gh blk" style="margin-top:4px;color:var(--bad)" onclick="pkDel(\'' + a.id + '\')">Bu paketi sil</button>';
+  h += '<button class="btn gh blk" style="margin-top:4px;color:var(--bad)" onclick="pkDel(\'' + a.id + '\')">Bu üyeliği sil</button>';
   return h;
 }
 function pkForm(f){
-  return '<div class="card"><h3>' + (f.id ? 'Paketi düzenle' : 'Yeni paket') + '</h3>' +
-    '<div class="f"><label>Paket adı</label><input id="pk_ad" maxlength="60" placeholder="ör. 3 aylık online koçluk" value="' + esc(f.ad || '') + '"></div>' +
+  const tur = f.tur || 'Online Coaching';
+  return '<div class="card"><h3>' + (f.id ? 'Üyeliği düzenle' : 'Yeni üyelik') + '</h3>' +
+    '<div class="f"><label>Üyelik türü</label><div class="grid g2">' + [['Online Coaching','💻'],['Personal Training','🤝']].map(x => '<button class="btn ' + (tur === x[0] ? '' : 'gh') + '" style="padding:12px 6px" onclick="pkTur(\'' + x[0] + '\')">' + x[1] + ' ' + x[0] + '</button>').join('') + '</div></div>' +
+    '<div class="f"><label>Üyelik adı (boş bırakırsan otomatik: "3 aylık ' + tur + '")</label><input id="pk_ad" maxlength="60" placeholder="ör. 3 aylık ' + tur + '" value="' + esc(f.ad || '') + '"></div>' +
     '<div class="f"><label>Başlangıç tarihi</label><input type="date" id="pk_bas" value="' + (f.baslangic || todayS()) + '"></div>' +
     '<div class="f"><label>Üyelik süresi (gün)</label><input id="pk_gun" inputmode="numeric" value="' + (f.gun || 30) + '"><div class="chips" style="margin-top:6px">' + [[30,'1 ay'],[60,'2 ay'],[90,'3 ay'],[180,'6 ay'],[365,'1 yıl']].map(x => '<button class="btn gh sm" onclick="$(\'pk_gun\').value=' + x[0] + '">' + x[1] + '</button>').join('') + '</div></div>' +
     '<div class="f"><label>Toplam ücret (₺)</label><input id="pk_ucret" inputmode="numeric" value="' + (f.ucret || '') + '" placeholder="ör. 4500"></div>' +
     '<div class="f"><label>Ödeme tarihi (sonraki / tek seferlik)</label><input type="date" id="pk_odt" value="' + (f.odemeTarihi || '') + '"></div>' +
     '<div class="f"><label>Not (isteğe bağlı)</label><input id="pk_not" maxlength="300" placeholder="ör. 2 taksit, havale" value="' + esc(f.not || '') + '"></div>' +
-    '<div class="row"><button class="btn sp" onclick="pkSave()">Kaydet</button><button class="btn gh" onclick="S.pkF=null;render_det()">Vazgeç</button></div></div>';
+    '<div class="row"><button class="btn sp" onclick="pkSave()">Kaydet</button><button class="btn gh" onclick="S.pkF=null;pkRe()">Vazgeç</button></div></div>';
 }
 function pkPayForm(a){
   return '<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">' +
@@ -1074,29 +1105,31 @@ function pkPayForm(a){
     '<div class="f"><label>Ödeme günü</label><input type="date" id="pp_d" value="' + todayS() + '"></div>' +
     '<div class="f"><label>Sonraki ödeme tarihi (kalan varsa)</label><input type="date" id="pp_n" value=""></div>' +
     '<div class="f"><label>Not</label><input id="pp_not" maxlength="200" placeholder="ör. havale, nakit"></div>' +
-    '<div class="row"><button class="btn sp" onclick="pkPaySave()">Ödemeyi kaydet</button><button class="btn gh" onclick="S.pkPay=false;render_det()">Vazgeç</button></div></div>';
+    '<div class="row"><button class="btn sp" onclick="pkPaySave()">Ödemeyi kaydet</button><button class="btn gh" onclick="S.pkPay=false;pkRe()">Vazgeç</button></div></div>';
 }
-function pkNew(renew){ const a = S.pk && S.pk.aktif; S.pkPay = false; S.pkF = renew && a ? {ad: a.ad, gun: a.gun, ucret: a.ucret, baslangic: addD(a.bitis, 1)} : {}; render_det(); }
-function pkEdit(){ S.pkPay = false; S.pkF = Object.assign({}, S.pk.aktif); render_det(); }
-function pkPay(){ S.pkPay = !S.pkPay; render_det(); }
+function pkTur(t){ pkKeep(); const f = S.pkF; if(f.ad && /(Online Coaching|Personal Training)$/.test(f.ad)) f.ad = f.ad.replace(/(Online Coaching|Personal Training)$/, t); f.tur = t; pkRe(); }
+function pkKeep(){ const f = S.pkF; if(!f || !$('pk_gun')) return; f.ad = val('pk_ad'); f.baslangic = val('pk_bas'); f.gun = val('pk_gun'); f.ucret = val('pk_ucret'); f.odemeTarihi = val('pk_odt'); f.not = val('pk_not'); }
+function pkNew(renew){ const a = S.pk && S.pk.aktif; S.pkPay = false; S.pkF = renew && a ? {tur: a.tur, gun: a.gun, ucret: a.ucret, baslangic: addD(a.bitis, 1)} : {tur: 'Online Coaching'}; pkRe(); }
+function pkEdit(){ S.pkPay = false; S.pkF = Object.assign({}, S.pk.aktif); pkRe(); }
+function pkPay(){ S.pkPay = !S.pkPay; pkRe(); }
 function pkSave(){
-  const f = S.pkF, p = {sid: S.sid, id: f.id || '', ad: val('pk_ad').trim(), baslangic: val('pk_bas'), gun: val('pk_gun'), ucret: val('pk_ucret'), odeme_tarihi: val('pk_odt'), not: val('pk_not').trim()};
+  const f = S.pkF, p = {sid: S.odSid, id: f.id || '', tur: f.tur || 'Online Coaching', ad: val('pk_ad').trim(), baslangic: val('pk_bas'), gun: val('pk_gun'), ucret: val('pk_ucret'), odeme_tarihi: val('pk_odt'), not: val('pk_not').trim()};
   if(!(n(p.gun) >= 1)){ toast('Üyelik süresini gün olarak gir', true); return; }
-  call('savePaket', p).then(r => { S.pk = Object.assign(r, {sid: S.sid}); S.pkF = null; toast('✓ Paket kaydedildi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+  call('savePaket', p).then(r => { pkChanged(r); S.pkF = null; toast('✓ Üyelik kaydedildi'); pkRe(); }).catch(() => {});
 }
 function pkPaySave(){
   const a = S.pk.aktif, t = n(val('pp_t')); if(!(t > 0)){ toast('Tutarı gir', true); return; }
   const nx = val('pp_n');
   call('addOdeme', {paket_id: a.id, tutar: t, tarih: val('pp_d'), not: val('pp_not').trim(), sonraki: nx || (t >= a.kalanTutar ? 'yok' : '')})
-    .then(r => { S.pk = Object.assign(r, {sid: S.sid}); S.pkPay = false; toast('✓ ' + tl(t) + ' ödeme kaydedildi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+    .then(r => { pkChanged(r); S.pkPay = false; toast('✓ ' + tl(t) + ' ödeme kaydedildi'); pkRe(); }).catch(() => {});
 }
 function pkDelPay(id){
   if(S._pdd !== id){ S._pdd = id; toast('Silmek için tekrar ✕ dokun'); setTimeout(() => { if(S._pdd === id) S._pdd = null; }, 3000); return; }
-  S._pdd = null; call('deleteOdeme', {id}).then(r => { S.pk = Object.assign(r, {sid: S.sid}); toast('Ödeme silindi'); render_det(); }).catch(() => {});
+  S._pdd = null; call('deleteOdeme', {id}).then(r => { pkChanged(r); toast('Ödeme silindi'); pkRe(); }).catch(() => {});
 }
 function pkDel(id){
   if(S._pkd !== id){ S._pkd = id; toast('Paketi ve ödemelerini silmek için tekrar dokun', true); setTimeout(() => { if(S._pkd === id) S._pkd = null; }, 3000); return; }
-  S._pkd = null; call('deletePaket', {id}).then(r => { S.pk = Object.assign(r, {sid: S.sid}); toast('Paket silindi'); render_det(); call('overview', {}, true).then(o => { S.ov = o; }).catch(() => {}); }).catch(() => {});
+  S._pkd = null; call('deletePaket', {id}).then(r => { pkChanged(r); toast('Üyelik silindi'); pkRe(); }).catch(() => {});
 }
 function pkOzet(){
   const all = S.ov.students.filter(s => s.aktif && s.paket), up = [];
@@ -1107,8 +1140,8 @@ function pkOzet(){
     else if(p.bitisGun < 0 && p.bitisGun >= -14) up.push({s, sort: 50, txt: '📅 Paketi ' + (-p.bitisGun) + ' gün önce bitti', bad: true});
   });
   up.sort((a, b) => a.sort - b.sort);
-  return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.dt=\'paket\';openStu(\'' + x.s.id + '\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
-    : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz paket girilmedi. Öğrenci → 💳 Paket\'ten ekleyebilirsin.') + '</div>') + '</div>';
+  return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.odSid=\'' + x.s.id + '\';go(\'odeme\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
+    : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz üyelik girilmedi. Alttaki ₺ Ödeme sekmesinden ekleyebilirsin.') + '</div>') + '</div>';
 }
 function studentSel(fn){
   return '<select onchange="' + fn + '(this.value)" style="margin-bottom:10px;font-weight:600">' + S.ov.students.map(s => '<option value="' + s.id + '"' + (s.id === S.sid ? ' selected' : '') + '>' + esc(s.ad) + (s.aktif ? '' : ' (pasif)') + '</option>').join('') + '</select>';
@@ -1150,7 +1183,7 @@ function render_det(){
   let h = studentSel('loadDet') +
     (s.aktif ? '' : '<div class="card" style="background:#fdeaea">Bu öğrenci pasif. Linki çalışmıyor.</div>') + sgBanner(s.saglik) +
     (s.rozet ? '<div class="mut" style="margin:-2px 4px 10px;font-size:13px">' + (s.rozet.seri.giris ? '🔥 ' + s.rozet.seri.giris + ' gün seri · ' : '') + 'En uzun seri ' + s.rozet.seri.enUzun + ' gün · 🏅 ' + s.rozet.kazanilan + '/' + s.rozet.toplam + ' rozet</div>' : '') +
-    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['paket','💳 Paket'],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
+    '<div class="tabs">' + [['gun','Beslenme'],['olcum','Ölçümler'],['saglik','🩺 Sağlık' + ((s.saglik || []).some(r => r.durum === 'devam') ? ' •' : '')],['hedef','Hedefler & link']].map(x => '<button class="' + ((S.dt || 'gun') === x[0] ? 'on' : '') + '" onclick="S.dt=\'' + x[0] + '\';render_det()">' + x[1] + '</button>').join('') + '<button onclick="S.fsid=S.sid;S.fl=null;go(\'cfoto\')">📸 Fotoğraf</button>' + '</div>';
   if((S.dt || 'gun') === 'gun'){
     h += dateNav(d.date, 'cDay') + '<div class="card">' + rings(d.totals, t) + '</div>' +
       '<div class="card"><h3>Yedikleri</h3>' + entriesView(d, true) + '</div>' +
