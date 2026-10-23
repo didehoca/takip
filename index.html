@@ -101,6 +101,12 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .run .coach{background:#e2f6f1}
 .coach{background:#eef6ff;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
 .stu{background:#fff4ec;border-radius:10px;padding:6px 8px;font-size:13px;margin:6px 0}
+.dl{border:1px solid var(--line);border-radius:14px;padding:10px;margin-top:8px;background:#fff}
+.dl.ipt{opacity:.55}.dl.ipt .dtime{text-decoration:line-through}
+.dtime{font-weight:800;font-size:17px;min-width:56px;color:var(--ink)}
+.ist{background:#fff8ec;border:1px solid #f6dfb5;border-radius:12px;padding:8px 10px;margin-top:8px;font-size:13.5px}
+.dnext{background:linear-gradient(135deg,#fde7ef,#eef1ff)}
+.dbig{font-size:26px;font-weight:800;margin:2px 0}
 .seg{display:inline-flex;background:#f6eef2;border-radius:10px;padding:2px;gap:2px}
 .seg button{border:0;background:transparent;padding:5px 11px;font-size:12.5px;border-radius:8px;color:var(--mut);cursor:pointer;font-weight:600}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
@@ -153,7 +159,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-21c';
+const BUILD = '2026-10-23a';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -376,7 +382,8 @@ const ST_VIEWS = {
   foto: () => fotoStart(),
   saglik: () => { if(S.sg) render_sg(); else wait_(); call('saglik', {}, true).then(r => { S.sg = r; if(S.tab === 'saglik' && idle()) render_sg(); }).catch(e => toast(e.message, true)); },
   olcum: () => { if(S.meas) render_olcum(); else wait_(); call('meas', {}, !!S.meas).then(m => { S.meas = m; if(S.tab === 'olcum' && idle()) render_olcum(); }).catch(() => {}); },
-  antrenman: () => { if(S.prog) render_ant(); else wait_(); loadProg(S.prog ? S.prog.week : todayS(), !!S.prog); }
+  antrenman: () => { if(S.prog) render_ant(); else wait_(); loadProg(S.prog ? S.prog.week : todayS(), !!S.prog); },
+  ders: () => { if(S.dl) render_ders(); else wait_(); call('dersler', {}, true).then(r => { dersSet(r); if(S.tab === 'ders' && idle()) render_ders(); }).catch(e => toast(e.message, true)); }
 };
 function wait_(){ $('app').innerHTML = '<div class="empty">Yükleniyor…</div>'; }
 /* --- hızlı kayıt: ekranda hemen göster, arka planda kaydet --- */
@@ -460,14 +467,20 @@ function pushAsk(){
 }
 function pushLater(){ try { localStorage.setItem('dh_pl', String(Date.now() + 3 * 86400000)); } catch(e) {} pushRe(); }
 function pushRe(){ if(ROLE === 'coach'){ if(S.tab === 'ozet') render_ozet(); } else if(S.tab === 'bugun') render_bugun(); }
+function stNav(){
+  const it = [['bugun','☀︎','Bugün'],['plan','🍽︎','Planım'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman']];
+  if(S.dersVar) it.push(['ders','📅︎','Ders']);
+  setNav(it.concat([['foto','📷︎','Fotoğraf'],['saglik','✚','Sağlık']]));
+  if(S.tab) document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.id === 'nv_' + S.tab));
+}
 function stBoot(r){
   S.name = r.name; S.day = r.day; S.favs = r.favs; S.date = r.day.date;
+  if(r.ders){ S.dersNext = r.ders.next; if(!!r.ders.var !== !!S.dersVar){ S.dersVar = !!r.ders.var; if(S._navd) stNav(); } }
   if(r.id) pushInit(r.id);
   $('sub').textContent = 'Merhaba ' + r.name.split(' ')[0] + ' 👋';
 }
 function stInit(r){
-  setNav([['bugun','☀︎','Bugün'],['plan','🍽︎','Planım'],['ekle','＋','Ekle'],['olcum','⚖︎','Ölçüm'],['antrenman','✦','Antrenman'],['foto','📷︎','Fotoğraf'],['saglik','✚','Sağlık']]);
-  stBoot(r); go('bugun');
+  stBoot(r); S._navd = 1; stNav(); go(new URLSearchParams(location.search).get('v') === 'ders' && S.dersVar ? 'ders' : 'bugun');
 }
 function loadDay(d){
   S.date = d;
@@ -477,7 +490,7 @@ function loadDay(d){
 function render_bugun(){
   const d = S.day;
   $('app').innerHTML = pushCard() + dateNav(d.date, 'loadDay') + noTargets(d.targets) +
-    yeniBanner(d) + '<div class="card">' + rings(d.totals, d.targets) + '</div>' + rzStrip() + yorumCard(d) + uyumCard() +
+    yeniBanner(d) + dersBanner() + '<div class="card">' + rings(d.totals, d.targets) + '</div>' + rzStrip() + yorumCard(d) + uyumCard() +
     '<div class="card"><h3>Su ekle</h3><div class="chips">' + [250, 330, 500, 1000].map(m => '<button class="btn sec sm" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div></div>' +
     '<div class="card"><div class="row" style="margin-bottom:8px"><h3 style="margin:0" class="sp">Yediklerim</h3><button class="btn sm" onclick="go(\'ekle\')">＋ Ekle</button></div>' + (d.loading ? '<div class="empty">Yükleniyor…</div>' : entriesView(d, false)) + '</div>' +
     '<div class="card"><h3>Son 7 gün · kalori</h3>' + weekBars(d.week, d.targets.kcal) + '</div>' +
@@ -853,6 +866,7 @@ function uneat(iid){
 const C_VIEWS = {
   ozet: () => { if(S.ov) render_ozet(); if(S.ovTs && Date.now() - S.ovTs < 20000) return; S.ovTs = Date.now(); call('overview', {}, true).then(r => { S.ov = r; S.ovTs = Date.now(); cacheSet(r); if(S.tab === 'ozet' && idle()) render_ozet(); }).catch(() => {}); },
   odeme: () => { if(S.odList || S.odSid) render_odeme(); else wait_(); odLoad(); },
+  ders: () => { if(S.cd) render_cders(); else wait_(); cdLoad(S.cd ? S.cd.week : todayS()); },
   cfoto: () => { if(!S.fsid && S.ov && S.ov.students.length) S.fsid = S.ov.students[0].id; fotoStart(); },
   rapor: () => { if(S.wk) render_rapor(); else wait_(); loadRapor(S.wk ? S.wk.week : lastWeekStart()); },
   ogrenci: () => { if(!S.sid && S.ov && S.ov.students.length) S.sid = S.ov.students[0].id; if(S.det) render_det(); if(S.sid) loadDet(S.sid); else $('app').innerHTML = '<div class="empty">Öğrenci yok</div>'; },
@@ -867,9 +881,10 @@ const C_VIEWS = {
 };
 function cInit(r){
   $('sub').textContent = 'Antrenör Paneli';
-  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['odeme','₺','Ödeme'],['ayarlar','⚙︎','Ayarlar']]);
+  setNav([['ozet','☀︎','Özet'],['ogrenci','☺︎','Öğrenci'],['ders','📅︎','Dersler'],['program','✦','Program'],['beslenme','🍽︎','Beslenme'],['odeme','₺','Ödeme'],['ayarlar','⚙︎','Ayarlar']]);
   S.ov = r; S.ovTs = Date.now();
-  go(new URLSearchParams(location.search).get('v') === 'rapor' ? 'rapor' : 'ozet');
+  const v0 = new URLSearchParams(location.search).get('v');
+  go(v0 === 'rapor' ? 'rapor' : v0 === 'ders' ? 'ders' : 'ozet');
   pushInit('coach');
 }
 /* --- haftalık rapor --- */
@@ -1213,6 +1228,132 @@ function pkOzet(){
   return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.odSid=\'' + x.s.id + '\';go(\'odeme\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
     : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz üyelik girilmedi. Alttaki ₺ Ödeme sekmesinden ekleyebilirsin.') + '</div>') + '</div>';
 }
+/* =================== DERSLER =================== */
+function dtOf(t, s){ const d = pd(t), a = String(s || '0:0').split(':'); d.setHours(Number(a[0]) || 0, Number(a[1]) || 0, 0, 0); return d; }
+function hm(d){ return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function dersBit(x){ const a = String(x.saat).split(':').map(Number), m = a[0] * 60 + a[1] + (x.sure || 60); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+function gunAd(t){ return GUN[(pd(t).getDay() + 6) % 7]; }
+function dersGun(t){ const T = todayS(); return t === T ? 'Bugün' : t === addD(T, 1) ? 'Yarın' : gunAd(t); }
+function kalanTxt(h){ if(h <= 0) return 'şu an'; if(h < 1) return Math.max(1, Math.round(h * 60)) + ' dk sonra'; if(h < 24) return Math.round(h) + ' saat sonra'; return Math.floor(h / 24) + ' gün sonra'; }
+function dersSet(r){ S.dl = r; const x = r.list.find(d => d.durum !== 'iptal'); S.dersNext = x ? {tarih: x.tarih, saat: x.saat, sure: x.sure} : null; }
+function dersBanner(){
+  const x = S.dersNext; if(!x) return '';
+  const T = todayS(); if(x.tarih !== T && x.tarih !== addD(T, 1)) return '';
+  const h = (dtOf(x.tarih, x.saat) - Date.now()) / 36e5; if(h < -(x.sure || 60) / 60) return '';
+  return '<div class="card row" style="cursor:pointer;background:#eef6ff" onclick="go(\'ders\')"><div style="font-size:24px">📅</div><div class="sp"><b>' + (x.tarih === T ? 'Bugün' : 'Yarın') + ' saat ' + esc(x.saat) + ' dersin var</b><div class="mut" style="font-size:13px">Dide Hoca ile · ' + (x.sure || 60) + ' dk' + (h > 0 && h < 24 ? ' · ' + kalanTxt(h) : h <= 0 ? ' · şu an' : '') + '</div></div><span class="mut">›</span></div>';
+}
+function render_ders(){
+  const r = S.dl, nx = r.list.find(x => x.durum !== 'iptal');
+  let h = '';
+  if(nx){
+    const hh = (dtOf(nx.tarih, nx.saat) - Date.now()) / 36e5;
+    h += '<div class="card dnext"><div class="mut" style="font-size:13px">Sıradaki dersin</div><div class="dbig">' + dersGun(nx.tarih) + ' · ' + esc(nx.saat) + '</div><div class="mut">' + fmtD(nx.tarih) + ' ' + gunAd(nx.tarih) + ' · ' + esc(nx.saat) + '–' + dersBit(nx) + ' · ' + nx.sure + ' dk · ' + (hh > 0 ? kalanTxt(hh) : 'şu an derstesin 💪') + '</div></div>';
+  } else h += '<div class="card empty">Önümüzdeki günlerde planlanmış dersin yok.</div>';
+  if(r.seriler.length) h += '<div class="card"><h3>🗓 Düzenli derslerin</h3>' + r.seriler.map(s => '<div class="row" style="padding:4px 0"><b class="sp">Her ' + GUN[s.gun - 1] + '</b><span>' + esc(s.saat) + ' · ' + s.sure + ' dk</span></div>').join('') + '</div>';
+  if(r.cevaplar.length) h += '<div class="card"><h3>💬 İsteklerine gelen cevaplar</h3>' + r.cevaplar.map(c => '<div class="warnli" style="cursor:default"><b>' + (c.durum === 'onay' ? '✅ Onaylandı' : '❌ Onaylanmadı') + '</b> <span class="mut">' + fmtD(c.eskiTarih) + ' ' + esc(c.eskiSaat) + ' → ' + fmtD(c.yeniTarih) + ' ' + esc(c.yeniSaat) + '</span>' + (c.cevap ? '<div class="mut">Dide Hoca: ' + esc(c.cevap) + '</div>' : '') + '</div>').join('') + '</div>';
+  h += '<div class="mut" style="margin:0 4px 10px;font-size:13px">Ders saatini değiştirmen gerekirse dersten <b>en geç 2 gün önce</b> istek gönderebilirsin. Dide Hoca onaylayınca bildirim gelir.</div>';
+  if(r.list.length) h += '<div class="card"><h3>📅 Yaklaşan dersler</h3>' + r.list.map(dersSatir).join('') + '</div>';
+  $('app').innerHTML = h;
+}
+function dersSatir(x){
+  const st = dtOf(x.tarih, x.saat), hh = (st - Date.now()) / 36e5, ipt = x.durum === 'iptal', lim = S.dl.limit || 48;
+  const son = new Date(st.getTime() - lim * 36e5);
+  let h = '<div class="dl' + (ipt ? ' ipt' : '') + '"><div class="row"><div class="dtime">' + esc(x.saat) + '</div><div class="sp"><b>' + dersGun(x.tarih) + '</b> <span class="mut">' + fmtD(x.tarih) + '</span><div class="mut" style="font-size:12.5px">' + esc(x.saat) + '–' + dersBit(x) + ' · ' + x.sure + ' dk' + (x.tasindi ? ' · saati değişti' : '') + '</div></div>' + (ipt ? '<span class="pill bad">iptal</span>' : '') + '</div>';
+  if(ipt) return h + '</div>';
+  if(x.istek) h += '<div class="ist">⏳ Değişiklik isteğin: <b>' + fmtD(x.istek.tarih) + ' ' + gunAd(x.istek.tarih) + ' ' + esc(x.istek.saat) + '</b><div class="row" style="margin-top:4px"><span class="mut sp" style="font-size:12.5px">Dide Hoca\'nın onayı bekleniyor</span><button class="btn gh sm" onclick="dIstGeri(\'' + x.istek.id + '\')">Geri al</button></div></div>';
+  else if(S.dForm === x.key) h += dIstForm(x);
+  else if(hh >= lim) h += '<div class="row" style="margin-top:6px"><button class="btn gh sm" onclick="S.dForm=\'' + x.key + '\';render_ders()">🔁 Saat değişikliği iste</button><span class="mut sp" style="font-size:12px;text-align:right">son gün: ' + fmtD(ds(son)) + ' ' + GK[(son.getDay() + 6) % 7] + ' ' + hm(son) + '</span></div>';
+  else if(hh > 0) h += '<div class="mut" style="font-size:12px;margin-top:4px">Derse 2 günden az kaldığı için saat değişikliği isteği gönderilemez. Acil bir durum varsa Dide Hoca\'ya yaz.</div>';
+  return h + '</div>';
+}
+function dIstForm(x){
+  return '<div class="ist" style="background:#fff"><div class="f"><label>Yeni tarih</label><input type="date" id="di_t" min="' + todayS() + '" value="' + x.tarih + '"></div>' +
+    '<div class="f"><label>Yeni saat</label><input type="time" id="di_s" step="300" value="' + esc(x.saat) + '"></div>' +
+    '<div class="f"><input id="di_m" maxlength="300" placeholder="Not (isteğe bağlı, ör. iş çıkışı yetişemiyorum)"></div>' +
+    '<div class="row"><button class="btn sp" onclick="dIstGonder(\'' + x.key + '\')">İsteği gönder</button><button class="btn gh" onclick="S.dForm=null;render_ders()">Vazgeç</button></div></div>';
+}
+function dIstGonder(key){
+  const t = val('di_t'), s = val('di_s');
+  if(!t || !s){ toast('Yeni tarih ve saati seç', true); return; }
+  if(S._db) return; S._db = 1;
+  call('dersIstek', {key, tarih: t, saat: s, mesaj: val('di_m').trim()}).then(r => { S._db = 0; S.dForm = null; dersSet(r); toast('✓ İsteğin Dide Hoca\'ya gönderildi'); render_ders(); }).catch(() => { S._db = 0; });
+}
+function dIstGeri(id){ call('dersIstekGeri', {id}).then(r => { dersSet(r); toast('İstek geri alındı'); render_ders(); }).catch(() => {}); }
+/* --- Dide Hoca: ders takvimi --- */
+function cdLoad(w){ call('dersler', {week: w}, true).then(r => { S.cd = r; if(S.tab === 'ders' && idle()) render_cders(); }).catch(e => toast(e.message, true)); }
+function cdSet(r, msg){ S.cd = r; if(msg) toast(msg + nTxt(r)); if(S.tab === 'ders') render_cders(); call('overview', {}, true).then(o => { S.ov = o; S.ovTs = Date.now(); cacheSet(o); }).catch(() => {}); }
+function render_cders(){
+  const r = S.cd; let h = '';
+  if(r.istekler.length) h += '<div class="card" style="border:2px solid #f3c7d6"><h3>🔁 Saat değişikliği istekleri</h3>' + r.istekler.map(i =>
+    '<div class="warnli" style="cursor:default"><b>' + esc(i.ad) + '</b><div style="margin:2px 0">' + fmtD(i.eskiTarih, true) + ' ' + esc(i.eskiSaat) + ' <b>→ ' + fmtD(i.yeniTarih, true) + ' ' + esc(i.yeniSaat) + '</b></div>' +
+    (i.mesaj ? '<div class="mut">💬 ' + esc(i.mesaj) + '</div>' : '') +
+    (i.cakisma.length ? '<div style="color:#a8681a;font-size:13px">⚠️ O saatte başka ders var: ' + esc(i.cakisma.join(', ')) + '</div>' : '<div style="color:#2f8a5c;font-size:13px">✓ O saatte başka dersin yok</div>') +
+    '<input id="ic_' + i.id + '" maxlength="200" placeholder="Cevabın (isteğe bağlı)" style="margin-top:8px"><div class="row" style="margin-top:8px"><button class="btn sp" onclick="icCevap(\'' + i.id + '\',1)">✓ Onayla</button><button class="btn gh sp" onclick="icCevap(\'' + i.id + '\',0)">✕ Reddet</button></div></div>').join('') + '</div>';
+  h += S.dNew ? cdNewForm() : '<button class="btn sec blk" style="margin-bottom:12px" onclick="S.dNew={tip:\'seri\',gunler:[],sid:S.sid||\'\'};render_cders()">＋ Ders ekle</button>';
+  h += weekNav(r, 'cdLoad');
+  for(let g = 0; g < 7; g++){
+    const t = addD(r.week, g), ls = r.list.filter(x => x.tarih === t);
+    h += '<div class="card day"><div class="row"><h3 class="sp" style="margin:0">' + GUN[g] + ' <span class="mut">' + fmtD(t) + '</span></h3>' + (t === r.today ? '<span class="pill ok">Bugün</span>' : '') + '<span class="mut" style="font-size:13px">' + (ls.filter(x => x.durum !== 'iptal').length || '') + (ls.length ? ' ders' : '') + '</span></div>' +
+      (ls.length ? ls.map(x => cdSatir(x)).join('') : '<div class="mut" style="font-size:13px;margin-top:6px">Ders yok</div>') + '</div>';
+  }
+  if(r.seriler.length) h += '<div class="card"><h3>🗓 Düzenli dersler</h3>' + r.seriler.map(s => '<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><div class="sp"><b>' + esc(s.ad) + '</b><div class="mut" style="font-size:13px">Her ' + GUN[s.gun - 1] + ' ' + esc(s.saat) + ' · ' + s.sure + ' dk' + (s.baslangic > r.today ? ' · ' + fmtD(s.baslangic) + ' başlıyor' : '') + (s.not ? ' · ' + esc(s.not) : '') + '</div></div><button class="btn gh sm" onclick="cdSeriBitir(\'' + s.id + '\')">Bitir</button></div>').join('') +
+    '<div class="mut" style="font-size:12px;margin-top:6px">Bitir: o günden sonraki dersler kalkar, geçmiş dersler durur. Saati değişen bir düzenli ders için bitirip yenisini ekle.</div></div>';
+  $('app').innerHTML = h;
+}
+function cdSatir(x){
+  const ipt = x.durum === 'iptal', on = S.dEd === x.key;
+  return '<div class="dl' + (ipt ? ' ipt' : '') + '"><div class="row" style="cursor:pointer" onclick="S.dEd=S.dEd===\'' + x.key + '\'?null:\'' + x.key + '\';render_cders()"><div class="dtime">' + esc(x.saat) + '</div><div class="sp"><b>' + esc(x.ad) + '</b><div class="mut" style="font-size:12.5px">' + esc(x.saat) + '–' + dersBit(x) + ' · ' + x.sure + ' dk · ' + (x.seri ? 'düzenli' : 'tek seferlik') + (x.tasindi ? ' · saati değişti' : '') + (x.not ? ' · ' + esc(x.not) : '') + '</div></div>' +
+    (ipt ? '<span class="pill bad">iptal</span>' : x.istek ? '<span class="pill warn">⏳ istek</span>' : '') + '<span class="mut">' + (on ? '▴' : '▾') + '</span></div>' + (on ? cdEdForm(x) : '') + '</div>';
+}
+function cdEdForm(x){
+  const ipt = x.durum === 'iptal';
+  return '<div class="ist" style="background:#fff"><div class="f"><label>Tarih</label><input type="date" id="de_t" value="' + x.tarih + '"></div><div class="f"><label>Saat</label><input type="time" id="de_s" step="300" value="' + esc(x.saat) + '"></div><div class="f"><label>Süre (dk)</label><input id="de_d" inputmode="numeric" value="' + x.sure + '"></div>' +
+    (x.seri ? '<div class="mut" style="font-size:12px;margin:-4px 0 8px">Sadece bu dersi değiştirir; düzenli ders saati aynı kalır.</div>' : '') +
+    '<div class="row" style="flex-wrap:wrap"><button class="btn sp" onclick="cdSave(\'' + x.key + '\')">Kaydet</button>' + (ipt ? '<button class="btn sec" onclick="cdIptal(\'' + x.key + '\',1)">↺ İptali geri al</button>' : '<button class="btn gh" onclick="cdIptal(\'' + x.key + '\')">Dersi iptal et</button>') + (x.key.indexOf('d:') === 0 ? '<button class="btn gh" onclick="cdSil(\'' + x.key + '\')">Sil</button>' : '') + '</div></div>';
+}
+function cdNewForm(){
+  const f = S.dNew, st = S.ov.students.filter(s => s.aktif);
+  if(!f.sid && st.length) f.sid = st[0].id;
+  return '<div class="card"><h3>＋ Ders ekle</h3>' +
+    '<div class="f"><label>Öğrenci</label><select id="dn_sid">' + st.map(s => '<option value="' + s.id + '"' + (s.id === f.sid ? ' selected' : '') + '>' + esc(s.ad) + '</option>').join('') + '</select></div>' +
+    '<div class="f"><label>Ders tipi</label><div class="seg">' + [['seri', 'Her hafta'], ['tek', 'Tek seferlik']].map(x => '<button class="' + (f.tip === x[0] ? 'on' : '') + '" onclick="dnKeep();S.dNew.tip=\'' + x[0] + '\';render_cders()">' + x[1] + '</button>').join('') + '</div></div>' +
+    (f.tip === 'seri' ? '<div class="f"><label>Hangi günler?</label><div class="chips">' + GK.map((g, i) => '<button class="btn ' + (f.gunler.indexOf(i + 1) >= 0 ? '' : 'gh') + ' sm" onclick="dnKeep();dnGun(' + (i + 1) + ')">' + g + '</button>').join('') + '</div></div><div class="f"><label>Başlangıç tarihi</label><input type="date" id="dn_bas" value="' + (f.baslangic || todayS()) + '"></div>'
+      : '<div class="f"><label>Tarih</label><input type="date" id="dn_t" value="' + (f.tarih || todayS()) + '"></div>') +
+    '<div class="f"><label>Saat</label><input type="time" id="dn_s" step="300" value="' + esc(f.saat || '') + '"></div>' +
+    '<div class="f"><label>Süre (dk)</label><input id="dn_sure" inputmode="numeric" value="' + esc(f.sure || 60) + '"><div class="chips" style="margin-top:6px">' + [45, 60, 75, 90].map(m => '<button class="btn gh sm" onclick="$(\'dn_sure\').value=' + m + '">' + m + ' dk</button>').join('') + '</div></div>' +
+    '<div class="f"><label>Not (isteğe bağlı)</label><input id="dn_not" maxlength="200" placeholder="ör. salon, bacak günü" value="' + esc(f.not || '') + '"></div>' +
+    '<div class="row"><button class="btn sp" onclick="dnSave()">Kaydet</button><button class="btn gh" onclick="S.dNew=null;render_cders()">Vazgeç</button></div></div>';
+}
+function dnKeep(){ const f = S.dNew; if(!f) return; if($('dn_sid')) f.sid = val('dn_sid'); if($('dn_bas')) f.baslangic = val('dn_bas'); if($('dn_t')) f.tarih = val('dn_t'); f.saat = val('dn_s'); f.sure = val('dn_sure'); f.not = val('dn_not'); }
+function dnGun(g){ const l = S.dNew.gunler, i = l.indexOf(g); if(i >= 0) l.splice(i, 1); else l.push(g); render_cders(); }
+function dnSave(){
+  dnKeep(); const f = S.dNew;
+  if(!f.sid){ toast('Öğrenciyi seç', true); return; }
+  if(f.tip === 'seri' && !f.gunler.length){ toast('Dersin hangi günler olduğunu seç', true); return; }
+  if(!f.saat){ toast('Ders saatini seç', true); return; }
+  const wk = f.tip === 'tek' ? (f.tarih || todayS()) : (f.baslangic && f.baslangic > addD(S.cd.week, 6) ? f.baslangic : S.cd.week);
+  call('dersEkle', {sid: f.sid, tip: f.tip, gunler: f.gunler, baslangic: f.baslangic || todayS(), tarih: f.tarih || todayS(), saat: f.saat, sure: f.sure, not: f.not, week: wk}).then(r => { S.dNew = null; cdSet(r, '✓ Ders eklendi'); }).catch(() => {});
+}
+function cdSave(key){ call('dersDuzenle', {key, tarih: val('de_t'), saat: val('de_s'), sure: val('de_d'), week: S.cd.week}).then(r => { S.dEd = null; cdSet(r, '✓ Kaydedildi'); }).catch(() => {}); }
+function cdIptal(key, geri){
+  if(!geri && S._dci !== key){ S._dci = key; toast('Dersi iptal etmek için tekrar dokun'); setTimeout(() => { if(S._dci === key) S._dci = null; }, 3000); return; }
+  S._dci = null; call('dersIptal', {key, geri: !!geri, week: S.cd.week}).then(r => { S.dEd = null; cdSet(r, geri ? '✓ Ders tekrar planlandı' : 'Ders iptal edildi'); }).catch(() => {});
+}
+function cdSil(key){
+  if(S._dcs !== key){ S._dcs = key; toast('Silmek için tekrar dokun'); setTimeout(() => { if(S._dcs === key) S._dcs = null; }, 3000); return; }
+  S._dcs = null; call('dersSil', {key, week: S.cd.week}).then(r => { S.dEd = null; cdSet(r, 'Ders silindi'); }).catch(() => {});
+}
+function cdSeriBitir(id){
+  if(S._dsb !== id){ S._dsb = id; toast('Düzenli dersi bitirmek için tekrar dokun', true); setTimeout(() => { if(S._dsb === id) S._dsb = null; }, 3000); return; }
+  S._dsb = null; call('dersSeriBitir', {id, week: S.cd.week}).then(r => cdSet(r, 'Düzenli ders bitirildi')).catch(() => {});
+}
+function icCevap(id, onay){ call('istekCevap', {id, onay: !!onay, cevap: val('ic_' + id).trim(), week: S.cd.week}).then(r => cdSet(r, onay ? '✓ Onaylandı, ders taşındı' : 'İstek reddedildi')).catch(() => {}); }
+function dersOzet(){
+  const d = S.ov.ders; if(!d || (!d.bugun.length && !d.istek)) return '';
+  return '<div class="card" style="cursor:pointer" onclick="go(\'ders\')"><div class="row"><h3 class="sp" style="margin:0">📅 Bugünkü dersler</h3><span class="mut">›</span></div>' +
+    (d.istek ? '<div class="warnli" style="margin-top:8px"><b>🔁 ' + d.istek + ' saat değişikliği isteği</b> <span class="pill warn">bekliyor</span></div>' : '') +
+    (d.bugun.length ? d.bugun.map(x => '<div class="row" style="padding:5px 0' + (x.bitti ? ';opacity:.5' : '') + '"><b style="width:52px">' + esc(x.saat) + '</b><span class="sp">' + esc(x.ad) + '</span><span class="mut" style="font-size:12.5px">' + x.sure + ' dk' + (x.bitti ? ' · bitti' : '') + '</span></div>').join('') : '<div class="mut" style="margin-top:6px;font-size:13px">Bugün ders yok</div>') + '</div>';
+}
 /* =================== DİDE HOCA ↔ ÖĞRENCİ YORUMLARI =================== */
 const HAZIR = ['Harika gidiyorsun 💪','Bugün çok iyi 👏','Su az kaldı 💧','Proteine dikkat 🥩','Sebze ekle 🥗','Akşamı hafif tut 🌙','Antrenmanı kaçırma 🏋️','Aferin, devam! 🔥'];
 function yeniBanner(d){
@@ -1270,7 +1411,7 @@ function render_ozet(){
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
   let h = pushCard() + '<button class="btn sec blk" style="margin-bottom:12px" onclick="go(\'rapor\')">📈 Haftalık rapor</button><div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
-  h += mesajOzet() + pkOzet();
+  h += dersOzet() + mesajOzet() + pkOzet();
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
