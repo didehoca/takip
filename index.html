@@ -107,6 +107,12 @@ th{color:var(--mut);font-weight:600;font-size:12px}
 .ist{background:#fff8ec;border:1px solid #f6dfb5;border-radius:12px;padding:8px 10px;margin-top:8px;font-size:13.5px}
 .dnext{background:linear-gradient(135deg,#fde7ef,#eef1ff)}
 .dbig{font-size:26px;font-weight:800;margin:2px 0}
+.kmap{background:#26242a;border-radius:16px;padding:12px 8px 10px;margin-top:10px}
+.kttl{color:#fff;font-weight:700;text-align:center;margin-bottom:4px}
+.kleg{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;font-size:12px;color:#d8d2dc;margin-top:6px}
+.kleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.klist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.klist span{border:1.5px solid;border-radius:999px;padding:2px 9px;font-size:12px;color:#f1edf3}
 .dtag{display:inline-block;background:#f6eef2;color:#7a4b5e;border-radius:8px;padding:2px 8px;font-size:12.5px;margin-top:4px;font-weight:600}
 .seg{display:inline-flex;background:#f6eef2;border-radius:10px;padding:2px;gap:2px}
 .seg button{border:0;background:transparent;padding:5px 11px;font-size:12.5px;border-radius:8px;color:var(--mut);cursor:pointer;font-weight:600}
@@ -160,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-23b';
+const BUILD = '2026-10-23c';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -693,8 +699,10 @@ function render_ant(){
       exInputs(r, fv) +
       '<label>Zorluk (1 kolay → 10 çok zor)</label>' + zPick('yz_' + r.id, fv(r, 'zorluk')) +
       '<div class="f" style="margin-top:8px;margin-bottom:0"><input id="yn_' + r.id + '" value="' + esc(fv(r, 'ogrenci_notu')) + '" placeholder="Notun (ör. son sette zorlandım)" oninput="dr(\'' + r.id + '\',\'ogrenci_notu\',this.value)"></div></div>').join('') +
-      '<button id="sv_' + g + '" class="btn blk" style="margin-top:4px" onclick="saveDayRes(' + g + ')">' + saveLbl(g, dirty) + '</button></div>';
+      '<button id="sv_' + g + '" class="btn blk" style="margin-top:4px" onclick="saveDayRes(' + g + ')">' + saveLbl(g, dirty) + '</button>' + (dirty ? '' : kasBtn('d' + g, rs)) + '</div>';
   }
+  const kh = kasHarita(p.rows);
+  if(kh) h += '<div class="card"><h3>💪 Bu hafta çalışan kasların</h3><div class="mut" style="font-size:13px">Tamamladığın hareketlere göre. Kırmızı en çok, yeşil en az çalışan kaslar.</div>' + kh + '</div>';
   if(p.rows.length) h += '<div class="card"><h3>📝 Haftalık notun</h3><textarea id="snote" placeholder="Bu hafta nasıl geçti? Uyku, enerji, ağrı…">' + esc(p.ogrenciNotu) + '</textarea><button class="btn blk" style="margin-top:8px" onclick="saveSNote()">Notu kaydet</button></div>';
   $('app').innerHTML = h;
 }
@@ -782,7 +790,7 @@ function saveDayRes(g){
   });
   saveDrafts(); progLocal(S.prog);
   if(document.activeElement) document.activeElement.blur();
-  toast('✓ ' + GUN[g - 1] + ' antrenmanı kaydediliyor 💪'); render_ant();
+  toast('✓ ' + GUN[g - 1] + ' antrenmanı kaydediliyor 💪'); S.kasAc = 'd' + g; render_ant();
   pend++;
   call('saveResults', {week: wk, items}, true).then(r => {
     pend--;
@@ -1229,6 +1237,114 @@ function pkOzet(){
   return '<div class="card"><h3>💳 Ödemeler & paketler</h3>' + (up.length ? up.map(x => '<div class="warnli" onclick="S.odSid=\'' + x.s.id + '\';go(\'odeme\')"><div class="row"><b class="sp">' + esc(x.s.ad) + '</b>' + (x.bad ? '<span class="pill bad">!</span>' : '') + '</div><div class="mut">' + esc(x.txt) + '</div></div>').join('')
     : '<div class="empty">' + (all.length ? 'Önümüzdeki 7 günde ödeme ya da biten paket yok 👍' : 'Henüz üyelik girilmedi. Alttaki ₺ Ödeme sekmesinden ekleyebilirsin.') + '</div>') + '</div>';
 }
+/* =================== KAS HARİTASI =================== */
+const KAS_AD = {gogus:'Göğüs', omuz_on:'Ön omuz', omuz_yan:'Yan omuz', omuz_arka:'Arka omuz', trapez:'Trapez', kanat:'Kanat (lat)', ust_sirt:'Orta sırt', bel:'Bel', biceps:'Biceps', triceps:'Triceps', onkol:'Önkol', karin:'Karın', oblik:'Yan karın', kalca:'Kalça', on_bacak:'Ön bacak', arka_bacak:'Arka bacak', ic_bacak:'İç bacak', baldir:'Baldır'};
+/* hareket → 'ana kaslar|yardımcı kaslar' */
+const KAS_MAP = {
+  'Back Squat':'on_bacak,kalca|ic_bacak,arka_bacak,bel,karin','Front Squat':'on_bacak|kalca,karin,ust_sirt,ic_bacak','Goblet Squat':'on_bacak,kalca|ic_bacak,karin','Smith Machine Squat':'on_bacak,kalca|ic_bacak','Hack Squat':'on_bacak|kalca,ic_bacak','Box Squat':'kalca,on_bacak|arka_bacak,bel','Leg Press':'on_bacak,kalca|ic_bacak,arka_bacak','Bulgarian Split Squat':'on_bacak,kalca|ic_bacak,arka_bacak','Walking Lunge':'on_bacak,kalca|arka_bacak,ic_bacak,baldir','Reverse Lunge':'kalca,on_bacak|arka_bacak','Lateral Lunge':'ic_bacak,kalca|on_bacak','Step-up':'on_bacak,kalca|arka_bacak,baldir','Leg Extension':'on_bacak|','Sissy Squat':'on_bacak|karin','Wall Sit':'on_bacak|kalca','Pistol Squat (destekli)':'on_bacak,kalca|karin,baldir',
+  'Hip Thrust':'kalca|arka_bacak,on_bacak','Barbell Glute Bridge':'kalca|arka_bacak','Glute Bridge':'kalca|arka_bacak,karin','Single-Leg Glute Bridge':'kalca|arka_bacak,karin','Romanian Deadlift':'arka_bacak,kalca|bel,onkol','Single-Leg RDL':'arka_bacak,kalca|bel,karin','Deadlift':'kalca,arka_bacak,bel|on_bacak,trapez,onkol,kanat','Sumo Deadlift':'kalca,ic_bacak,on_bacak|arka_bacak,bel,trapez','Stiff-Leg Deadlift':'arka_bacak|kalca,bel','Good Morning':'arka_bacak,bel|kalca','Kettlebell Swing':'kalca,arka_bacak|bel,karin,omuz_on','Cable Kickback':'kalca|arka_bacak','Hip Abduction (makine)':'kalca|','Hip Adduction (makine)':'ic_bacak|','Lying Leg Curl':'arka_bacak|baldir','Seated Leg Curl':'arka_bacak|','Nordic Curl':'arka_bacak|kalca','Frog Pump':'kalca|ic_bacak','Fire Hydrant':'kalca|karin','Clamshell (bantlı)':'kalca|','Lateral Band Walk':'kalca|on_bacak','Donkey Kick':'kalca|arka_bacak',
+  'Standing Calf Raise':'baldir|','Seated Calf Raise':'baldir|','Leg Press Calf Raise':'baldir|','Single-Leg Calf Raise':'baldir|',
+  'Bench Press':'gogus|omuz_on,triceps','Incline Bench Press':'gogus,omuz_on|triceps','Decline Bench Press':'gogus|triceps','Dumbbell Bench Press':'gogus|omuz_on,triceps','Incline Dumbbell Press':'gogus,omuz_on|triceps','Dumbbell Fly':'gogus|omuz_on','Incline Dumbbell Fly':'gogus|omuz_on','Cable Crossover':'gogus|omuz_on','Pec Deck':'gogus|','Chest Press (makine)':'gogus|omuz_on,triceps','Push-up (şınav)':'gogus,triceps|omuz_on,karin','Dizüstü Şınav':'gogus|triceps,omuz_on','Incline Push-up':'gogus|triceps,omuz_on','Dips':'triceps,gogus|omuz_on',
+  'Lat Pulldown':'kanat|biceps,ust_sirt,omuz_arka','Close-Grip Lat Pulldown':'kanat|biceps,ust_sirt','Pull-up (barfiks)':'kanat,biceps|ust_sirt,onkol,karin','Destekli Barfiks':'kanat|biceps,ust_sirt','Seated Cable Row':'ust_sirt,kanat|biceps,omuz_arka','Barbell Row':'ust_sirt,kanat|biceps,omuz_arka,bel','Tek Kol Dumbbell Row':'kanat,ust_sirt|biceps,omuz_arka','T-Bar Row':'ust_sirt,kanat|biceps,bel','Chest-Supported Row':'ust_sirt|kanat,omuz_arka,biceps','Straight-Arm Pulldown':'kanat|triceps,karin','Inverted Row':'ust_sirt,kanat|biceps,omuz_arka,karin','Back Extension (hiperekstansiyon)':'bel|kalca,arka_bacak','Shrug':'trapez|onkol',
+  'Overhead Press':'omuz_on,omuz_yan|triceps,trapez,karin','Dumbbell Shoulder Press':'omuz_on,omuz_yan|triceps,trapez','Arnold Press':'omuz_on,omuz_yan|triceps','Shoulder Press (makine)':'omuz_on|omuz_yan,triceps','Lateral Raise':'omuz_yan|trapez','Cable Lateral Raise':'omuz_yan|trapez','Front Raise':'omuz_on|gogus','Rear Delt Fly':'omuz_arka|ust_sirt,trapez','Reverse Pec Deck':'omuz_arka|ust_sirt','Face Pull':'omuz_arka,ust_sirt|trapez','Upright Row':'omuz_yan,trapez|biceps',
+  'Barbell Curl':'biceps|onkol','Dumbbell Curl':'biceps|onkol','Hammer Curl':'biceps,onkol|','Preacher Curl':'biceps|onkol','Cable Curl':'biceps|onkol','Incline Dumbbell Curl':'biceps|onkol','Concentration Curl':'biceps|onkol','Triceps Pushdown':'triceps|','Rope Pushdown':'triceps|','Overhead Triceps Extension':'triceps|','Skull Crusher':'triceps|','Close-Grip Bench Press':'triceps|gogus,omuz_on','Bench Dips':'triceps|omuz_on,gogus','Triceps Kickback':'triceps|',
+  'Plank':'karin|omuz_on,oblik','Side Plank':'oblik|karin,omuz_yan','Crunch':'karin|','Reverse Crunch':'karin|','Lying Leg Raise':'karin|','Hanging Leg Raise':'karin|onkol,oblik','Russian Twist':'oblik|karin','Bicycle Crunch':'karin,oblik|','Dead Bug':'karin|','Bird Dog':'bel|kalca,karin','Mountain Climber':'karin|omuz_on,on_bacak','Cable Crunch':'karin|','Ab Wheel':'karin|kanat,omuz_on','Pallof Press':'oblik|karin','Hollow Hold':'karin|','V-Up':'karin|','Heel Touch':'oblik|karin',
+  'Burpee':'on_bacak,gogus|kalca,omuz_on,triceps,karin','Jumping Jack':'baldir|omuz_yan,on_bacak','Jump Squat':'on_bacak,kalca|baldir','Box Jump':'on_bacak,kalca|baldir,arka_bacak','Thruster':'on_bacak,omuz_on|kalca,triceps,karin','Kettlebell Clean':'kalca,arka_bacak|trapez,omuz_on,onkol',"Farmer's Walk":'onkol,trapez|karin,oblik,on_bacak','Battle Rope':'omuz_on|karin,onkol,biceps','Sled Push':'on_bacak,kalca|baldir,omuz_on,triceps','Wall Ball':'on_bacak,omuz_on|kalca,triceps','İp Atlama':'baldir|on_bacak','Bear Crawl':'omuz_on,karin|on_bacak','Skater Jump':'kalca|on_bacak,ic_bacak,baldir','High Knees':'on_bacak|karin,baldir',
+  'Eğimli Yürüyüş (koşu bandı)':'kalca,baldir|arka_bacak,on_bacak','Bisiklet':'on_bacak|kalca,baldir,arka_bacak','Eliptik':'on_bacak|kalca,arka_bacak,omuz_on','Kürek Makinesi':'kanat,on_bacak|ust_sirt,biceps,kalca,arka_bacak','Stair Climber':'kalca,on_bacak|baldir,arka_bacak','Yüzme':'kanat,omuz_on|triceps,karin,on_bacak','Tempolu Yürüyüş':'on_bacak|baldir,kalca',
+  '90/90 Kalça Mobilitesi':'|kalca','Hip Flexor Stretch':'|on_bacak','Hamstring Stretch':'|arka_bacak','Pigeon Stretch':'|kalca','Cat-Cow':'|bel',"World's Greatest Stretch":'|kalca,ic_bacak,ust_sirt','Thoracic Rotation':'|ust_sirt,oblik','Foam Roller':'|','Ankle Mobility':'|baldir','Shoulder Dislocates (bant)':'|omuz_on,omuz_arka',
+  '__kosu':'on_bacak,baldir|arka_bacak,kalca,karin'
+};
+/* listede olmayan (elle yazılan) hareketler için anahtar kelimeler */
+const KAS_KW = [
+  [/leg curl|bacak bük|hamstring/i,'arka_bacak|kalca'],[/calf|baldır|baldir/i,'baldir|'],[/leg ext/i,'on_bacak|'],[/hip thrust|glute|kalça|kalca|köprü|bridge|kickback|abduct/i,'kalca|arka_bacak'],
+  [/adduct|iç bacak/i,'ic_bacak|'],[/deadlift|rdl/i,'arka_bacak,kalca|bel'],[/squat|lunge|leg press|step|çömel/i,'on_bacak,kalca|ic_bacak,arka_bacak'],
+  [/pulldown|pull-up|pull up|barfiks|chin/i,'kanat,biceps|ust_sirt'],[/row|kürek/i,'ust_sirt,kanat|biceps,omuz_arka'],[/shrug|trapez/i,'trapez|'],[/hyperext|back ext|bel/i,'bel|kalca'],
+  [/lateral raise|yan omuz/i,'omuz_yan|'],[/rear delt|face pull|arka omuz/i,'omuz_arka|ust_sirt'],[/shoulder|omuz|overhead|military/i,'omuz_on,omuz_yan|triceps'],
+  [/fly|crossover|pec|göğüs|gogus|bench|chest|şınav|sinav|push/i,'gogus|omuz_on,triceps'],[/dip/i,'triceps,gogus|omuz_on'],
+  [/triceps|pushdown|skull|kickback/i,'triceps|'],[/curl|biceps/i,'biceps|onkol'],[/twist|oblik|side|yan karın/i,'oblik|karin'],[/plank|crunch|karın|karin|abs|leg raise|sit/i,'karin|oblik'],
+  [/koşu|kosu|run|yürüyüş|walk|bisiklet|bike|cycling|stair|merdiven|eliptik/i,'on_bacak,baldir|kalca,arka_bacak']
+];
+function kasTanim(r){
+  if(r.tur === 'kosu') return KAS_MAP.__kosu;
+  const nm = String(r.egzersiz || '').trim();
+  if(KAS_MAP[nm] !== undefined) return KAS_MAP[nm];
+  const k = KAS_KW.find(x => x[0].test(nm)); return k ? k[1] : '';
+}
+/* tamamlanan hareketin hacmi (set eşdeğeri) */
+function kasHacim(r){
+  if(r.tur === 'kosu'){ const m = secs(r.yapilan_sure) / 60 || n(r.yapilan_km) * 6; return Math.max(2, Math.min(8, m / 10)); }
+  if(typeof exMod === 'function' && exMod(r) === 'dk'){ const m = n(r.yapilan_sure) || n(unitless(r.tekrar)); return Math.max(1, Math.min(8, m / 10)); }
+  return Math.max(1, Math.min(10, n(r.yapilan_set) || n(r.set) || 3));
+}
+function kasSkor(rows){
+  const s = {};
+  rows.filter(isDone).forEach(r => {
+    const t = kasTanim(r); if(!t) return;
+    const v = kasHacim(r), p = t.split('|');
+    (p[0] || '').split(',').filter(Boolean).forEach(k => s[k] = (s[k] || 0) + v);
+    (p[1] || '').split(',').filter(Boolean).forEach(k => s[k] = (s[k] || 0) + v * 0.4);
+  });
+  return s;
+}
+const KAS_RENK = [[0.7, '#e53935', 'Çok yoğun'], [0.45, '#fb8c00', 'Yoğun'], [0.2, '#fdd835', 'Orta'], [0, '#7cb342', 'Hafif']];
+function kasRenk(v, mx){ if(!v || !mx) return null; const r = v / mx; return KAS_RENK.find(x => r >= x[0] && (x[0] > 0 || r > 0)); }
+/* çizim: [kas, şekil, ortada mı] — sol yarı çizilir, sağ yarıya aynalanır */
+const KAS_ON = [
+  ['trapez','<path d="M91,61 C84,65 74,68 64,72 C72,74 82,72 92,68 Z"/>'],
+  ['omuz_yan','<ellipse cx="52.5" cy="92" rx="6" ry="12.5" transform="rotate(14 52.5 92)"/>'],
+  ['omuz_on','<ellipse cx="59" cy="87" rx="7" ry="12.5" transform="rotate(28 59 87)"/>'],
+  ['gogus','<path d="M98,78 L98,117 C88,123 75,121 67,112 C62,104 62,94 66,87 C74,80 86,78 98,78 Z"/>'],
+  ['biceps','<ellipse cx="44" cy="127" rx="7.5" ry="20" transform="rotate(6 44 127)"/>'],
+  ['onkol','<ellipse cx="36" cy="192" rx="6.5" ry="25" transform="rotate(9 36 192)"/>'],
+  ['karin','<rect x="89" y="124" width="9" height="15" rx="4"/><rect x="89" y="142" width="9" height="15" rx="4"/><rect x="89" y="160" width="9" height="15" rx="4"/><rect x="89" y="178" width="9" height="15" rx="4"/><path d="M89,196 L98,196 L98,234 C93,231 90,222 89,212 Z"/>'],
+  ['oblik','<path d="M70,125 C76,131 82,136 86,141 L86,199 C81,205 75,210 70,214 C70,196 69,172 65,152 C63,141 65,131 70,125 Z"/>'],
+  ['on_bacak','<path d="M68,240 C66,266 68,298 74,326 C80,334 89,334 93,326 C95,300 95,274 92,254 C84,248 75,244 68,240 Z"/>'],
+  ['ic_bacak','<path d="M94,254 C97,260 99,268 99,278 C98,292 97,300 95,307 C96,288 95,270 94,254 Z"/>'],
+  ['baldir','<ellipse cx="79" cy="373" rx="7.5" ry="26"/>']
+];
+const KAS_ARKA = [
+  ['trapez','<path d="M100,58 L112,64 C124,68 136,72 144,78 L124,88 C114,98 106,118 100,140 C94,118 86,98 76,88 L56,78 C64,72 76,68 88,64 Z"/>', 1],
+  ['omuz_yan','<ellipse cx="52" cy="93" rx="6" ry="12.5" transform="rotate(10 52 93)"/>'],
+  ['omuz_arka','<ellipse cx="58" cy="90" rx="7.5" ry="12" transform="rotate(-28 58 90)"/>'],
+  ['ust_sirt','<path d="M71,94 C79,92 87,96 93,102 L94,126 C86,128 77,124 71,117 C67,109 67,100 71,94 Z"/>'],
+  ['kanat','<path d="M66,119 C76,129 88,133 96,137 L98,176 C92,187 84,197 76,205 C72,187 68,169 63,151 C61,139 62,127 66,119 Z"/>'],
+  ['bel','<path d="M91,150 L98,146 L98,214 L89,210 C87,190 88,170 91,150 Z"/>'],
+  ['triceps','<ellipse cx="43" cy="124" rx="8" ry="21" transform="rotate(6 43 124)"/>'],
+  ['onkol','<ellipse cx="36" cy="192" rx="6.5" ry="25" transform="rotate(9 36 192)"/>'],
+  ['kalca','<ellipse cx="83" cy="240" rx="16.5" ry="17"/>'],
+  ['arka_bacak','<path d="M68,260 C66,284 68,308 74,330 C82,336 90,336 94,328 C96,308 98,286 98,264 C88,264 76,262 68,260 Z"/>'],
+  ['baldir','<ellipse cx="80" cy="371" rx="11" ry="27"/>']
+];
+const KAS_GOVDE_L = '<path d="M44,80 C34,84 31,98 31,112 L33,160 C34,168 46,170 50,164 L56,112 C58,96 54,82 44,80 Z"/><path d="M33,158 C28,168 26,188 25,206 L26,236 L38,236 C41,220 45,196 50,172 C52,162 38,154 33,158 Z"/><ellipse cx="31" cy="249" rx="7" ry="13"/><path d="M64,222 C62,250 64,290 70,330 L73,346 L96,346 C97,320 99,290 100,250 L80,246 Z"/><path d="M71,338 C66,360 66,386 72,410 L74,425 L90,425 C92,400 96,370 95,338 Z"/><ellipse cx="82" cy="431" rx="11" ry="6"/>';
+const KAS_GOVDE_C = '<ellipse cx="100" cy="30" rx="17" ry="21"/><rect x="91" y="46" width="18" height="18"/><path d="M100,60 C88,60 80,63 70,67 C58,71 50,74 47,84 C45,92 47,104 50,112 L56,140 C60,156 64,170 66,186 C67,200 64,212 64,224 C64,236 70,244 80,247 L100,249 L120,247 C130,244 136,236 136,224 C136,212 133,200 134,186 C136,170 140,156 144,140 L150,112 C153,104 155,92 153,84 C150,74 142,71 130,67 C120,63 112,60 100,60 Z"/>';
+const AYNA = 'transform="translate(200,0) scale(-1,1)"';
+function kasFigur(defs, sc, mx, dx, lbl){
+  const g = KAS_GOVDE_C + KAS_GOVDE_L + '<g ' + AYNA + '>' + KAS_GOVDE_L + '</g>';
+  let h = '<g transform="translate(' + dx + ',8)">';
+  h += '<g fill="none" stroke="#6d6873" stroke-width="3">' + g + '</g><g fill="#3b383f">' + g + '</g>';
+  defs.forEach(d => {
+    const c = kasRenk(sc[d[0]], mx), f = c ? c[1] : '#4d4952', o = c ? 0.95 : 1;
+    const t = '<title>' + KAS_AD[d[0]] + '</title>';
+    h += '<g fill="' + f + '" fill-opacity="' + o + '">' + t + d[1] + (d[2] ? '' : '<g ' + AYNA + '>' + d[1] + '</g>') + '</g>';
+  });
+  return h + '<text x="100" y="458" text-anchor="middle" fill="#a9a3ad" font-size="13" font-weight="600">' + lbl + '</text></g>';
+}
+function kasHarita(rows, baslik){
+  const sc = kasSkor(rows), ks = Object.keys(sc).filter(k => sc[k] > 0);
+  if(!ks.length) return '';
+  const mx = Math.max.apply(null, ks.map(k => sc[k]));
+  const svg = '<svg viewBox="0 0 420 476" style="width:100%;max-width:420px;display:block;margin:0 auto">' + kasFigur(KAS_ON, sc, mx, 5, 'Ön') + kasFigur(KAS_ARKA, sc, mx, 215, 'Arka') + '</svg>';
+  const leg = '<div class="kleg">' + KAS_RENK.map(x => '<span><i style="background:' + x[1] + '"></i>' + x[2] + '</span>').join('') + '<span><i style="background:#4d4952"></i>Çalışmadı</span></div>';
+  const sirali = ks.sort((a, b) => sc[b] - sc[a]);
+  const liste = '<div class="klist">' + sirali.map(k => '<span style="border-color:' + kasRenk(sc[k], mx)[1] + '">' + KAS_AD[k] + '</span>').join('') + '</div>';
+  return '<div class="kmap">' + (baslik ? '<div class="kttl">' + baslik + '</div>' : '') + svg + leg + liste + '</div>';
+}
+function kasToggle(id){ S.kasAc = S.kasAc === id ? null : id; if(S.tab === 'antrenman') render_ant(); else if(S.tab === 'program') render_cprog(); }
+function kasBtn(id, rows){
+  if(!rows.some(r => isDone(r) && kasTanim(r))) return '';
+  const on = S.kasAc === id;
+  return '<button class="btn gh sm blk" style="margin-top:8px" onclick="kasToggle(\'' + id + '\')">💪 ' + (on ? 'Kas haritasını gizle' : 'Çalışan kasları gör') + '</button>' + (on ? kasHarita(rows) : '');
+}
 /* =================== DERSLER =================== */
 const D_TUR = ['Kuvvet','Hipertrofi','Fonksiyonel','HIIT / Kondisyon','Kardiyo','Core','Mobilite & esneme','Ölçüm / değerlendirme'];
 const D_BOLGE = ['Tüm vücut','Üst vücut','Alt vücut','Bacak & kalça','Göğüs','Sırt','Omuz','Kol','Karın & core'];
@@ -1513,11 +1629,13 @@ function render_cprog(){
         '<div style="margin-top:6px"><input placeholder="' + (exMod(r) === 'dk' ? 'Not (ör. eğim 12 hız 5 · nabız 120-140)' : 'Not (ör. tempo 3-1-1, 90 sn dinlenme)') + '" value="' + esc(r.antrenor_notu) + '" oninput="ed(' + i + ',\'antrenor_notu\',this.value)"></div>' +
         '<div style="margin-top:6px"><input list="exlist" placeholder="↺ Alternatif (yapamazsa, isteğe bağlı)" value="' + esc(r.alternatif || '') + '" oninput="ed(' + i + ',\'alternatif\',this.value)"></div>' +
         (r.yapilan_set !== undefined && (isDone(r) || r.agirlik || r.zorluk || r.ogrenci_notu) ? '<div class="stu">' + exRes(r) + '</div>' : '') +
-        '</div>'; }).join('') + '</div>';
+        '</div>'; }).join('') + kasBtn('c' + g, (p.rows || []).filter(r => r.gun === g)) + '</div>';
   }
   h += '<datalist id="exlist">' + exAll().map(x => '<option value="' + esc(x[1]) + '">').join('') + '</datalist>';
   h += '<div style="position:sticky;bottom:calc(96px + env(safe-area-inset-bottom));z-index:4;margin-bottom:12px"><button class="btn blk" style="box-shadow:0 6px 18px rgba(232,138,166,.45)" onclick="saveProg()">' + (S.dirty ? '💾 Programı kaydet (değişiklik var)' : '💾 Programı kaydet') + '</button></div>';
   h += '<div class="card"><h3>📋 Haftalık notun (öğrenci görür)</h3><textarea id="cnote" placeholder="Bu haftanın odağı, beslenme hatırlatmaları…">' + esc(p.antrenorNotu) + '</textarea><button class="btn sec blk" style="margin-top:8px" onclick="call(\'saveCoachNote\',{sid:S.sid,week:S.cprog.week,text:val(\'cnote\')}).then(r=>{S.cprog.antrenorNotu=r.antrenorNotu;toast(\'✓ Not kaydedildi\'+nTxt(r))})">Notu kaydet</button></div>';
+  const kh = kasHarita(p.rows || []);
+  if(kh) h += '<div class="card"><h3>💪 Öğrencinin bu hafta çalıştırdığı kaslar</h3><div class="mut" style="font-size:13px">Öğrencinin tamamladığı hareketlere göre.</div>' + kh + '</div>';
   h += '<div class="card" style="background:#fff8f1"><h3>💬 Öğrencinin haftalık notu</h3>' + (p.ogrenciNotu ? esc(p.ogrenciNotu).replace(/\n/g, '<br>') : '<span class="mut">Henüz not yok</span>') +
     '<div class="mut" style="margin-top:8px">Tamamlanan: ' + p.done + '/' + p.total + (p.avgZorluk ? ' · Ort. zorluk ' + fx(p.avgZorluk, 1) : '') + '</div>' + runSum(p) + '</div>';
   $('app').innerHTML = h;
