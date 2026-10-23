@@ -166,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-23d';
+const BUILD = '2026-10-23e';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -1698,9 +1698,9 @@ function pkCats(){
 }
 function pkList(){
   const el = document.getElementById('pkl'); if(!el) return;
-  const q = nz(S.pickQ).trim(), cur = (S.edit[S.pickI] || {}).egzersiz || '';
+  const sk = v => nz(v).replace(/[^0-9a-zçğıöşü]/g, ''), q = sk(S.pickQ), cur = (S.edit[S.pickI] || {}).egzersiz || '';
   const src = q ? exAll() : (S.pickCat === 'Tümü' ? exAll() : EX_LIB[S.pickCat].map(n => [S.pickCat, n]));
-  const l = src.filter(x => !q || nz(x[1]).indexOf(q) >= 0 || nz(x[0]).indexOf(q) >= 0);
+  const l = src.filter(x => !q || sk(x[1]).indexOf(q) >= 0 || sk(x[0]).indexOf(q) >= 0);
   S._pk = l.map(x => x[1]);
   el.innerHTML = l.length ? l.map((x, k) => '<div class="pkit' + (x[1] === cur ? ' on' : '') + '" onclick="pkSel(' + k + ')"><span>' + esc(x[1]) + '</span><span class="mut" style="font-size:12px">' + esc(x[0]) + '</span></div>').join('')
     : '<div class="empty">Bulunamadı. Aşağıdan elle yazabilirsin.</div>';
