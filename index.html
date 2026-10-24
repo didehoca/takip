@@ -166,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-24b';
+const BUILD = '2026-10-24c';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -1555,11 +1555,11 @@ function render_ozet(){
   const girdi = act.filter(s => s.today.kcal > 0 || s.today.su > 0).length;
   const uy = act.filter(s => s.level > 0).sort((a, b) => b.level - a.level);
   let h = pushCard() + '<button class="btn sec blk" style="margin-bottom:12px" onclick="go(\'rapor\')">📈 Haftalık rapor</button><div class="grid g4" style="margin-bottom:12px"><div class="stat"><b>' + act.length + '</b><span>Aktif öğrenci</span></div><div class="stat"><b>' + girdi + '</b><span>Bugün giriş yapan</span></div><div class="stat"><b style="color:var(--bad)">' + act.filter(s => s.level === 2).length + '</b><span>Acil uyarı</span></div><div class="stat"><b style="color:var(--warn)">' + act.filter(s => s.level === 1).length + '</b><span>Dikkat</span></div></div>';
-  h += dersOzet() + mesajOzet() + pkOzet();
+  h += dersOzet() + mesajOzet() + pkOzet() + bildirimOzet();
   h += '<div class="card"><h3>⚠️ Dikkat gerekenler</h3>' + (uy.length ? uy.map(s => '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row"><b class="sp">' + esc(s.ad) + '</b><span class="pill ' + (s.level === 2 ? 'bad' : 'warn') + '">' + (s.level === 2 ? 'Acil' : 'Dikkat') + '</span></div><div class="mut">' + s.warn.map(esc).join(' · ') + '</div></div>').join('') : '<div class="empty">Her şey yolunda 🎉</div>') + '</div>';
   h += '<div class="card"><h3>Bugün herkes · ' + fmtD(o.today, true) + '</h3>' + act.map(s => {
     const t = s.targets;
-    return '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row" style="margin-bottom:6px"><b class="sp">' + esc(s.ad) + '</b><span class="mut">' + (s.lastDays == null ? 'hiç giriş yok' : s.lastDays === 0 ? 'bugün girdi' : s.lastDays + ' gün önce') + '</span></div>' +
+    return '<div class="warnli" onclick="openStu(\'' + s.id + '\')"><div class="row" style="margin-bottom:6px"><b class="sp">' + esc(s.ad) + (s.bildirim ? '' : ' <span title="Bildirimler kapalı" style="font-size:13px">🔕</span>') + '</b><span class="mut">' + (s.lastDays == null ? 'hiç giriş yok' : s.lastDays === 0 ? 'bugün girdi' : s.lastDays + ' gün önce') + '</span></div>' +
       '<div class="grid g4" style="gap:8px;font-size:12px">' +
       '<div>Kalori <b>' + fx(s.today.kcal) + '</b>' + (t.kcal ? '/' + t.kcal : '') + pb(s.today.kcal, t.kcal, 'var(--kcal)') + '</div>' +
       '<div>Protein <b>' + fx(s.today.p) + '</b>' + (t.p ? '/' + t.p : '') + pb(s.today.p, t.p, 'var(--p)') + '</div>' +
@@ -1570,6 +1570,15 @@ function render_ozet(){
       ' · Antrenman: ' + (s.prTotal ? s.prDone + '/' + s.prTotal : 'program yok') + (s.planTotal ? ' · Plan: ' + s.planDone + '/' + s.planTotal : '') + '</div></div>';
   }).join('') + '</div>';
   $('app').innerHTML = h;
+}
+function bildirimOzet(){
+  const act = S.ov.students.filter(s => s.aktif), acik = act.filter(s => s.bildirim), kapali = act.filter(s => !s.bildirim);
+  if(!act.length) return '';
+  const wa = s => '<a class="btn gh sm" style="text-decoration:none;white-space:nowrap" target="_blank" onclick="event.stopPropagation()" href="https://api.whatsapp.com/send?text=' + encodeURIComponent(waMesaj(s.ad, s.link)) + '">WhatsApp\'tan tekrar gönder</a>';
+  return '<div class="card"><div class="row"><h3 class="sp" style="margin:0">🔔 Bildirimler</h3><span class="mut" style="font-size:13px">' + acik.length + '/' + act.length + ' açık</span></div>' +
+    (kapali.length ? '<div class="mut" style="font-size:13px;margin:6px 0 4px">🔕 <b>Kapalı</b> — bu öğrencilere hatırlatma ve mesaj bildirimi gitmiyor. Ana ekrana ekleme tarifli mesajı tekrar gönderebilirsin:</div>' +
+      kapali.map(s => '<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><span class="sp" style="cursor:pointer" onclick="openStu(\'' + s.id + '\')">🔕 ' + esc(s.ad) + '</span>' + (s.link ? wa(s) : '') + '</div>').join('') : '<div class="mut" style="font-size:13px;margin-top:6px">Herkesin bildirimleri açık 👍</div>') +
+    (acik.length ? '<div style="margin-top:8px;font-size:13px"><b>🔔 Açık:</b> ' + acik.map(s => esc(s.ad)).join(', ') + '</div>' : '') + '</div>';
 }
 function openStu(id){ S.sid = id; S.det = null; S.cdate = todayS(); go('ogrenci'); }
 function loadDet(id, d){
@@ -1609,7 +1618,7 @@ function render_det(){
       '</div><div class="mut" id="mchk" style="margin-bottom:10px">' + (mk ? 'Makrolardan hesaplanan: ' + Math.round(mk) + ' kcal' : '') + '</div>' +
       '<div class="grid g2"><div class="f"><label>Amaç</label><select id="t_amac">' + ['Kilo ver','Kilo al','Kilo koru'].map(a => '<option' + (a === s.amac ? ' selected' : '') + '>' + a + '</option>').join('') + '</select></div><div class="f"><label>Hedef kilo</label><input id="t_hk" inputmode="decimal" value="' + esc(s.hedefKilo) + '"></div></div>' +
       '<button class="btn blk" onclick="saveTg()">Hedefleri kaydet</button></div>' +
-      '<div class="card"><h3>Öğrencinin linki</h3><div class="mut" style="margin-bottom:6px">Bu linki sadece bu öğrenciye gönder. Kendi sayfasına giriş anahtarıdır.</div><div class="link" id="slink">' + esc(s.link) + '</div>' +
+      '<div class="card"><h3>Öğrencinin linki</h3>' + (s.bildirim ? '<div class="pill ok" style="display:inline-block;margin-bottom:8px">🔔 Bildirimler açık</div>' : '<div style="background:#fff4ec;border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:13px">🔕 <b>Bildirimler kapalı.</b> Hatırlatmalar ve mesaj bildirimleri bu öğrenciye gitmiyor. Aşağıdaki <b>WhatsApp ile gönder</b> mesajındaki adımlarla uygulamayı ana ekrana ekleyip oradan açması ve <b>İzin ver</b> demesi gerekiyor.</div>') + '<div class="mut" style="margin-bottom:6px">Bu linki sadece bu öğrenciye gönder. Kendi sayfasına giriş anahtarıdır.</div><div class="link" id="slink">' + esc(s.link) + '</div>' +
       '<div class="row" style="margin-top:8px"><button class="btn sec sm" onclick="cp(\'slink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://api.whatsapp.com/send?text=' + encodeURIComponent(waMesaj(s.ad, s.link)) + '">WhatsApp ile gönder</a><span class="sp"></span>' +
       '<button class="btn gh sm" onclick="setAct(' + (!s.aktif) + ')">' + (s.aktif ? 'Pasif yap' : 'Aktif yap') + '</button></div></div>';
   }
