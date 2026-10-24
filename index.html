@@ -166,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-23e';
+const BUILD = '2026-10-24a';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -597,6 +597,17 @@ function render_ekle(){
     : '<div class="card"><h3>Su ekle</h3><div class="chips" style="margin-bottom:12px">' + [200, 250, 330, 500, 750, 1000].map(m => '<button class="btn sec" onclick="addSu(' + m + ')">+' + m + ' ml</button>').join('') + '</div>' +
         '<div class="row"><input id="su_ml" inputmode="numeric" placeholder="Başka miktar (ml)" class="sp" style="width:auto"><button class="btn" onclick="const v=n(val(\'su_ml\'));if(v>0)addSu(Math.round(v))">Ekle</button></div>' +
         '<div class="mut" style="margin-top:10px">Bugün: <b>' + fx(S.day.totals.su) + '</b>' + (S.day.targets.su ? ' / ' + fx(S.day.targets.su) : '') + ' ml</div></div>');
+}
+function waMesaj(ad, link){
+  const isim = String(ad || '').trim().split(/\s+/)[0];
+  return 'Merhaba' + (isim ? ' ' + isim : '') + '! 👋\n' +
+    'Dide Hoca beslenme & antrenman takip uygulaman hazır:\n' + link + '\n\n' +
+    '📲 *Ana ekrana ekle* (uygulama gibi açılsın):\n\n' +
+    '🍎 *iPhone:* Linki *Safari*\'de aç → alttaki *Paylaş* (⬆️) tuşuna bas (görmüyorsan önce *•••* menüsüne dokun) → *Ana Ekrana Ekle* → *Ekle*.\n' +
+    '(WhatsApp içinde açılırsa önce \"Safari\'de Aç\"a dokun.)\n\n' +
+    '🤖 *Android:* Linki *Chrome*\'da aç → sağ üstteki *⋮* menüsü → *Ana ekrana ekle* (ya da *Uygulamayı yükle*) → *Ekle*.\n\n' +
+    'Sonra uygulamayı hep ana ekrandaki ikondan aç ve ilk açılışta *bildirimlere izin ver* 🔔 (iPhone\'da bildirimler sadece ana ekrandan açınca çalışır.)\n\n' +
+    'Bu link sana özel, kimseyle paylaşma 🙂';
 }
 function nz(s){ return String(s || '').toLocaleLowerCase('tr').replace(/[çğıöşüâî]/g, c => ({'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i'})[c]); }
 function porG(p){ const m = String(p || '').match(/(\d+(?:[.,]\d+)?)\s*(g|gr|ml)\b/i); return m && n(m[1]) > 0 ? {v: n(m[1]), u: m[2].toLowerCase() === 'ml' ? 'ml' : 'g'} : null; }
@@ -1599,7 +1610,7 @@ function render_det(){
       '<div class="grid g2"><div class="f"><label>Amaç</label><select id="t_amac">' + ['Kilo ver','Kilo al','Kilo koru'].map(a => '<option' + (a === s.amac ? ' selected' : '') + '>' + a + '</option>').join('') + '</select></div><div class="f"><label>Hedef kilo</label><input id="t_hk" inputmode="decimal" value="' + esc(s.hedefKilo) + '"></div></div>' +
       '<button class="btn blk" onclick="saveTg()">Hedefleri kaydet</button></div>' +
       '<div class="card"><h3>Öğrencinin linki</h3><div class="mut" style="margin-bottom:6px">Bu linki sadece bu öğrenciye gönder. Kendi sayfasına giriş anahtarıdır.</div><div class="link" id="slink">' + esc(s.link) + '</div>' +
-      '<div class="row" style="margin-top:8px"><button class="btn sec sm" onclick="cp(\'slink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent('Merhaba! Beslenme ve antrenman takip sayfan: ' + s.link) + '">WhatsApp ile gönder</a><span class="sp"></span>' +
+      '<div class="row" style="margin-top:8px"><button class="btn sec sm" onclick="cp(\'slink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent(waMesaj(s.ad, s.link)) + '">WhatsApp ile gönder</a><span class="sp"></span>' +
       '<button class="btn gh sm" onclick="setAct(' + (!s.aktif) + ')">' + (s.aktif ? 'Pasif yap' : 'Aktif yap') + '</button></div></div>';
   }
   $('app').innerHTML = h;
@@ -1829,7 +1840,7 @@ function addStu(){
   const ad = val('ns').trim(); if(!ad){ toast('İsim yaz', true); return; }
   call('addStudent', {ad}).then(r => {
     $('ns').value = '';
-    $('nsres').innerHTML = '<div style="margin-top:10px"><div class="mut">✓ ' + esc(r.ad) + ' eklendi. Linki:</div><div class="link" id="nlink">' + esc(r.link) + '</div><div class="row" style="margin-top:6px"><button class="btn sec sm" onclick="cp(\'nlink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent('Merhaba! Beslenme ve antrenman takip sayfan: ' + r.link) + '">WhatsApp</a></div><div class="mut" style="margin-top:6px">Hedeflerini Öğrenci → Hedefler & link kısmından girebilirsin.</div></div>';
+    $('nsres').innerHTML = '<div style="margin-top:10px"><div class="mut">✓ ' + esc(r.ad) + ' eklendi. Linki:</div><div class="link" id="nlink">' + esc(r.link) + '</div><div class="row" style="margin-top:6px"><button class="btn sec sm" onclick="cp(\'nlink\')">Kopyala</button><a class="btn gh sm" style="text-decoration:none" target="_blank" href="https://wa.me/?text=' + encodeURIComponent(waMesaj(r.ad, r.link)) + '">WhatsApp</a></div><div class="mut" style="margin-top:6px">Hedeflerini Öğrenci → Hedefler & link kısmından girebilirsin.</div></div>';
     call('overview').then(o => { S.ov = o; });
   });
 }
