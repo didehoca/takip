@@ -166,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-24c';
+const BUILD = '2026-10-25a';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -522,7 +522,9 @@ function delEntry(id){
 function edEntry(id){
   if(String(id).indexOf('tmp') === 0){ toast('Kaydediliyor, birkaç saniye sonra düzenleyebilirsin'); return; }
   const e = S.day.entries.find(x => x.id === id); if(!e) return;
-  S.edit = id; S.edOrig = {miktar: e.miktar, kcal: n(e.kcal), p: n(e.p), k: n(e.k), y: n(e.y)};
+  let om = String(e.miktar || '').trim();
+  if(!om){ const f = (S.favs || []).find(x => x.besin === e.besin); om = f ? f.porsiyon : '1 porsiyon'; }
+  S.edit = id; S.edOrig = {miktar: om, kcal: n(e.kcal), p: n(e.p), k: n(e.k), y: n(e.y)};
   render_bugun();
   const f = $(e.ogun === 'Su' ? 'e_su' : 'e_m'); if(f){ f.focus(); try { f.select(); } catch(err) {} }
 }
@@ -534,19 +536,55 @@ function edForm(e){
   const ogs = OGUNLER.indexOf(e.ogun) < 0 ? OGUNLER.concat([e.ogun]) : OGUNLER;
   return '<div class="edf">' +
     '<div class="grid g2"><div class="f"><label>Besin</label><input id="e_b" value="' + esc(e.besin) + '"></div>' +
-    '<div class="f"><label>Miktar</label><input id="e_m" value="' + esc(e.miktar) + '" oninput="edScale()"></div></div>' +
+    '<div class="f"><label>Miktar</label><input id="e_m" value="' + esc((S.edOrig && S.edOrig.miktar) || e.miktar) + '" oninput="edScale()"></div></div>' +
+    '<div class="row" style="margin:-4px 0 8px;flex-wrap:wrap;gap:6px"><span class="mut" style="font-size:12.5px">Hızlı:</span>' + [0.5, 1.5, 2, 3].map(x => '<button type="button" class="btn gh sm" onclick="edKat(' + x + ')">×' + String(x).replace('.', ',') + '</button>').join('') +
+      (amtParse((S.edOrig && S.edOrig.miktar) || '').g ? '<input id="e_g" inputmode="decimal" placeholder="gram" style="width:80px" oninput="edGram(this.value)"><span class="mut" style="font-size:12.5px">' + amtParse(S.edOrig.miktar).gu + '</span>' : '') + '</div>' +
     '<div class="grid g4"><div class="f"><label>Kalori</label><input id="e_kcal" inputmode="decimal" value="' + v(e.kcal) + '"></div><div class="f"><label>Protein g</label><input id="e_p" inputmode="decimal" value="' + v(e.p) + '"></div>' +
     '<div class="f"><label>Karb g</label><input id="e_k" inputmode="decimal" value="' + v(e.k) + '"></div><div class="f"><label>Yağ g</label><input id="e_y" inputmode="decimal" value="' + v(e.y) + '"></div></div>' +
     '<div class="f"><label>Öğün</label><select id="e_o">' + ogs.map(o => '<option' + (o === e.ogun ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></div>' +
-    '<div class="mut" style="font-size:12px;margin:-2px 0 8px">Miktarı değiştirince (ör. 45g → 90g) kalori ve makrolar otomatik orantılanır.</div>' + btns + '</div>';
+    '<div class="mut" style="font-size:12px;margin:-2px 0 8px">Miktarı değiştirince (ör. 1 adet → 2 adet, 100 g → 150 g ya da sadece 2 yazınca) kalori ve makrolar otomatik orantılanır.</div>' + btns + '</div>';
 }
 function amtNum(s){ const m = String(s || '').replace(',', '.').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; }
 function amtUnit(s){ return String(s || '').replace(/[\d.,\s]+/, '').trim().toLocaleLowerCase('tr'); }
+/* "2 × 1 dilim (30 g)", "150 g", "2 adet", "1/2 kase" gibi miktarları çözer */
+function amtParse(s){
+  let t = String(s || '').toLocaleLowerCase('tr').replace(/½/g, '0.5').replace(/yarım/g, '0.5').replace(/(\d),(\d)/g, '$1.$2').trim();
+  const num = x => { if(/^\d+\/\d+$/.test(x)){ const a = x.split('/'); return +a[0] / +a[1]; } return parseFloat(x); };
+  let mult = 1; const mm = t.match(/^(\d+\/\d+|\d+(?:\.\d+)?)\s*[×x*]\s*(.*)$/); if(mm){ mult = num(mm[1]); t = mm[2]; }
+  const gm = t.match(/(\d+(?:\.\d+)?)\s*(g|gr|gram|ml)(?![a-zçğıöşü])/);
+  const onlyG = !!gm && t.replace(gm[0], '').replace(/[()\s]/g, '') === '';
+  const cm = onlyG ? null : t.match(/^(\d+\/\d+|\d+(?:\.\d+)?)\s*([a-zçğıöşü]+)?/);
+  const pure = /^(\d+\/\d+|\d+(?:\.\d+)?)$/.test(t);
+  return {mult, g: gm ? num(gm[1]) * mult : 0, gu: gm && gm[2] === 'ml' ? 'ml' : 'g', c: cm ? num(cm[1]) * mult : 0, w: cm ? (cm[2] || '') : '', pure, pv: pure ? num(t) * mult : 0, onlyG};
+}
+function amtOran(o, s){
+  const a = amtParse(o), b = amtParse(s);
+  if(a.c && b.c && a.w && a.w === b.w && a.c !== b.c) return b.c / a.c;
+  if(a.g && b.g && !b.pure) return b.g / a.g;
+  if(b.pure && b.pv > 0) return a.onlyG && a.g ? b.pv / a.g : b.pv / (a.c || a.mult || 1);
+  if(a.c && b.c && a.w === b.w) return b.c / a.c;
+  return 0;
+}
+function edPut(r){
+  const o = S.edOrig; if(!o || !(r > 0)) return;
+  ['kcal', 'p', 'k', 'y'].forEach(k => { $('e_' + k).value = String(Math.round(o[k] * r * 10) / 10).replace('.', ','); });
+}
 function edScale(){
   const o = S.edOrig, nm = $('e_m') ? $('e_m').value : ''; if(!o) return;
-  const a = amtNum(o.miktar), b = amtNum(nm);
-  if(!(a > 0 && b > 0) || amtUnit(o.miktar) !== amtUnit(nm)) return;
-  ['kcal', 'p', 'k', 'y'].forEach(k => { $('e_' + k).value = String(Math.round(o[k] * b / a * 10) / 10).replace('.', ','); });
+  edPut(amtOran(o.miktar, nm));
+}
+function edKat(x){
+  const o = S.edOrig; if(!o) return;
+  const a = amtParse(o.miktar), base = String(o.miktar).replace(/^\s*(\d+\/\d+|\d+(?:[.,]\d+)?)\s*[×x*]\s*/, '');
+  const m = Math.round((a.mult || 1) * x * 100) / 100;
+  $('e_m').value = (m === 1 ? '' : String(m).replace('.', ',') + ' × ') + base;
+  if($('e_g')) $('e_g').value = '';
+  edPut(x);
+}
+function edGram(v){
+  const o = S.edOrig, a = amtParse(o && o.miktar), g = n(v); if(!a.g || !(g > 0)) return;
+  $('e_m').value = fx(g, 1) + ' ' + a.gu;
+  edPut(g / a.g);
 }
 function edSave(id){
   const e = S.day.entries.find(x => x.id === id); if(!e){ edCancel(); return; }
@@ -579,9 +617,9 @@ function render_ekle(){
     ((S.mode || 'fav') === 'fav' ?
       (sel ? '<div class="card" style="border-color:var(--pri)"><h3>' + esc(sel.besin) + '</h3><div class="mut">1 porsiyon = ' + esc(sel.porsiyon) + '</div>' +
         '<div class="row" style="margin:10px 0"><label style="margin:0">Kaç porsiyon?</label>' + [0.5, 1, 1.5, 2, 3].map(m => '<button class="btn ' + (mult === m ? '' : 'gh') + ' sm" onclick="S.mult=' + m + ';S.gram=null;render_ekle()">' + String(m).replace('.', ',') + '</button>').join('') +
-        '<input id="mlt" inputmode="decimal" style="width:70px" value="' + String(Math.round(mult * 100) / 100).replace('.', ',') + '" onchange="S.mult=n(this.value);S.gram=null;render_ekle()"></div>' +
-        (sg ? '<div class="row" style="margin:-4px 0 10px"><label style="margin:0">veya kaç ' + (sg.u === 'ml' ? 'ml' : 'gram') + '?</label><input id="grm" inputmode="decimal" style="width:90px" placeholder="ör. ' + fx(sg.v * 2) + '" value="' + (S.gram ? fx(S.gram, 1) : '') + '" onchange="const g=n(this.value);S.gram=g>0?g:null;S.mult=g>0?g/' + sg.v + ':1;render_ekle()"><span class="mut">' + sg.u + '</span></div>' : '') +
-        '<div class="grid g4" style="margin-bottom:10px"><div class="stat"><b>' + fx(sel.kcal * mult) + '</b><span>kcal</span></div><div class="stat"><b>' + fx(sel.p * mult, 1) + '</b><span>Protein</span></div><div class="stat"><b>' + fx(sel.k * mult, 1) + '</b><span>Karb</span></div><div class="stat"><b>' + fx(sel.y * mult, 1) + '</b><span>Yağ</span></div></div>' +
+        '<input id="mlt" inputmode="decimal" style="width:70px" value="' + String(Math.round(mult * 100) / 100).replace('.', ',') + '" oninput="favMult(this.value)"></div>' +
+        (sg ? '<div class="row" style="margin:-4px 0 10px"><label style="margin:0">veya kaç ' + (sg.u === 'ml' ? 'ml' : 'gram') + '?</label><input id="grm" inputmode="decimal" style="width:90px" placeholder="ör. ' + fx(sg.v * 2) + '" value="' + (S.gram ? fx(S.gram, 1) : '') + '" oninput="favGram(this.value)"><span class="mut">' + sg.u + '</span></div>' : '') +
+        '<div class="grid g4" style="margin-bottom:10px"><div class="stat"><b id="fv_kcal">' + fx(sel.kcal * mult) + '</b><span>kcal</span></div><div class="stat"><b id="fv_p">' + fx(sel.p * mult, 1) + '</b><span>Protein</span></div><div class="stat"><b id="fv_k">' + fx(sel.k * mult, 1) + '</b><span>Karb</span></div><div class="stat"><b id="fv_y">' + fx(sel.y * mult, 1) + '</b><span>Yağ</span></div></div>' +
         '<div class="row"><button class="btn gh" onclick="S.sel=null;render_ekle()">Vazgeç</button><button class="btn sp" onclick="addFav()">' + esc(S.ogun) + ' öğününe ekle</button></div></div>' : '') +
       '<div class="card"><input placeholder="🔎 270+ besin içinde ara (ör. simit, canga)" value="' + esc(S.q || '') + '" oninput="S.q=this.value;clearTimeout(S._qt);S._qt=setTimeout(()=>{render_ekle();const i=document.querySelector(\'#app input[placeholder]\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">' +
         (fl.length ? fl.map(f => '<div class="fav ' + (S.sel === f.id ? 'on' : '') + '" onclick="S.sel=\'' + f.id + '\';S.mult=1;S.gram=null;render_ekle();window.scrollTo(0,0)"><div class="n"><b>' + esc(f.besin) + '</b>' + (f.own ? ' <span class="pill ok">benim</span>' : '') + '<div class="mut">' + esc(f.porsiyon) + ' · ' + fx(f.kcal) + ' kcal · P ' + fx(f.p, 1) + ' · K ' + fx(f.k, 1) + ' · Y ' + fx(f.y, 1) + '</div></div>' +
@@ -611,8 +649,30 @@ function waMesaj(ad, link){
 }
 function nz(s){ return String(s || '').toLocaleLowerCase('tr').replace(/[çğıöşüâî]/g, c => ({'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i'})[c]); }
 function porG(p){ const m = String(p || '').match(/(\d+(?:[.,]\d+)?)\s*(g|gr|ml)\b/i); return m && n(m[1]) > 0 ? {v: n(m[1]), u: m[2].toLowerCase() === 'ml' ? 'ml' : 'g'} : null; }
+/* porsiyon / gram yazarken değerler anında güncellensin (sayfa yeniden çizilmeden) */
+function favShow(){
+  const f = S.favs.find(x => x.id === S.sel); if(!f) return;
+  const m = n(S.mult || 1) || 1;
+  [['kcal', 0], ['p', 1], ['k', 1], ['y', 1]].forEach(x => { const el = $('fv_' + x[0]); if(el) el.textContent = fx(f[x[0]] * m, x[1]); });
+  document.querySelectorAll('#app .btn.sm[onclick^="S.mult="]').forEach(b => { const v = n((b.getAttribute('onclick').match(/S\.mult=([\d.]+)/) || [])[1]); b.classList.toggle('gh', !(v === m && !S.gram)); });
+}
+function favMult(v){
+  const m = n(v); S.mult = m > 0 ? m : 1; S.gram = null;
+  const f = S.favs.find(x => x.id === S.sel), sg = f ? porG(f.porsiyon) : null, g = $('grm');
+  if(g && document.activeElement !== g) g.value = '';
+  favShow();
+}
+function favGram(v){
+  const f = S.favs.find(x => x.id === S.sel), sg = f ? porG(f.porsiyon) : null; if(!sg) return;
+  const g = n(v); S.gram = g > 0 ? g : null; S.mult = g > 0 ? g / sg.v : 1;
+  const ml = $('mlt'); if(ml) ml.value = String(Math.round(S.mult * 100) / 100).replace('.', ',');
+  favShow();
+}
 function addFav(){
-  const f = S.favs.find(x => x.id === S.sel), m = n(S.mult || 1) || 1; if(!f || S.day.loading) return;
+  const f0 = S.favs.find(x => x.id === S.sel);
+  if(f0){ const sg0 = porG(f0.porsiyon), gv = $('grm') ? n($('grm').value) : 0, mv = $('mlt') ? n($('mlt').value) : 0;
+    if(sg0 && gv > 0){ S.gram = gv; S.mult = gv / sg0.v; } else if(mv > 0){ S.mult = mv; S.gram = null; } }
+  const f = f0, m = n(S.mult || 1) || 1; if(!f || S.day.loading) return;
   const sg = porG(f.porsiyon);
   const e = {ogun: S.ogun, besin: f.besin, miktar: S.gram && sg ? fx(S.gram, 1) + ' ' + sg.u : (m === 1 ? '' : String(Math.round(m * 100) / 100).replace('.', ',') + ' × ') + f.porsiyon,
     kcal: Math.round(f.kcal * m * 10) / 10, p: Math.round(f.p * m * 10) / 10, k: Math.round(f.k * m * 10) / 10, y: Math.round(f.y * m * 10) / 10};
@@ -1786,13 +1846,22 @@ function render_np(){
   $('app').innerHTML = h;
 }
 function npSet(mi, f, v, re){ S.npEdit[mi][f] = v; npDirty(); if(re) render_np(); }
-function npItem(mi, ii, f, v){ S.npEdit[mi].items[ii][f] = v; npDirty(); }
+function npItem(mi, ii, f, v){
+  const it = S.npEdit[mi].items[ii];
+  if(f === 'miktar'){
+    if(!it._b && (n(it.kcal) || n(it.p) || n(it.k) || n(it.y))) it._b = {miktar: String(it.miktar || ''), kcal: n(it.kcal), p: n(it.p), k: n(it.k), y: n(it.y)};
+    const r = it._b ? amtOran(it._b.miktar, v) : 0;
+    if(r > 0) ['kcal', 'p', 'k', 'y'].forEach(k => { const x = Math.round(it._b[k] * r * 10) / 10; it[k] = x; const el = $('np_' + mi + '_' + ii + '_' + k); if(el) el.value = x === 0 ? '' : String(x).replace('.', ','); });
+  } else if(['kcal', 'p', 'k', 'y'].indexOf(f) >= 0) delete it._b;
+  it[f] = v; npDirty();
+}
 function npFav(mi, ii, v){
   const f = (S.cfavs || []).find(x => x.besin.toLocaleLowerCase('tr') === String(v).trim().toLocaleLowerCase('tr')); if(!f) return;
   const it = S.npEdit[mi].items[ii];
   if(n(it.kcal) || n(it.p)) return;
-  Object.assign(it, {besin: f.besin, miktar: it.miktar || f.porsiyon, kcal: f.kcal, p: f.p, k: f.k, y: f.y}); npDirty(); render_np();
-  toast('Değerler "sık yenenler"den geldi: 1 porsiyon = ' + f.porsiyon);
+  const r = it.miktar ? amtOran(f.porsiyon, it.miktar) : 1, k = r > 0 ? r : 1, rd = x => Math.round(n(x) * k * 10) / 10;
+  Object.assign(it, {besin: f.besin, miktar: r > 0 && it.miktar ? it.miktar : f.porsiyon, kcal: rd(f.kcal), p: rd(f.p), k: rd(f.k), y: rd(f.y)}); delete it._b; npDirty(); render_np();
+  toast('Değerler "sık yenenler"den geldi: 1 porsiyon = ' + f.porsiyon + (k !== 1 ? ' (miktara göre ×' + String(Math.round(k * 100) / 100).replace('.', ',') + ')' : ''));
 }
 function npItemAdd(mi){ S.npEdit[mi].items.push({besin: '', miktar: '', kcal: '', p: '', k: '', y: '', alternatif: '', not: ''}); npDirty(); render_np(); }
 function npItemDel(mi, ii){ S.npEdit[mi].items.splice(ii, 1); npDirty(); render_np(); }
