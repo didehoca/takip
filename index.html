@@ -166,7 +166,7 @@ const TOKEN = (function(){
 })();
 let ROLE = 'none';
 /* --- otomatik güncelleme: yeni sürüm yayınlanınca uygulama kendini yeniler --- */
-const BUILD = '2026-10-25a';
+const BUILD = '2026-10-26a';
 function checkUpdate(){
   fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'}).then(r => r.text()).then(t => {
     const m = t.match(/const BUILD = '([^']+)'/);
@@ -621,7 +621,7 @@ function render_ekle(){
         (sg ? '<div class="row" style="margin:-4px 0 10px"><label style="margin:0">veya kaç ' + (sg.u === 'ml' ? 'ml' : 'gram') + '?</label><input id="grm" inputmode="decimal" style="width:90px" placeholder="ör. ' + fx(sg.v * 2) + '" value="' + (S.gram ? fx(S.gram, 1) : '') + '" oninput="favGram(this.value)"><span class="mut">' + sg.u + '</span></div>' : '') +
         '<div class="grid g4" style="margin-bottom:10px"><div class="stat"><b id="fv_kcal">' + fx(sel.kcal * mult) + '</b><span>kcal</span></div><div class="stat"><b id="fv_p">' + fx(sel.p * mult, 1) + '</b><span>Protein</span></div><div class="stat"><b id="fv_k">' + fx(sel.k * mult, 1) + '</b><span>Karb</span></div><div class="stat"><b id="fv_y">' + fx(sel.y * mult, 1) + '</b><span>Yağ</span></div></div>' +
         '<div class="row"><button class="btn gh" onclick="S.sel=null;render_ekle()">Vazgeç</button><button class="btn sp" onclick="addFav()">' + esc(S.ogun) + ' öğününe ekle</button></div></div>' : '') +
-      '<div class="card"><input placeholder="🔎 270+ besin içinde ara (ör. simit, canga)" value="' + esc(S.q || '') + '" oninput="S.q=this.value;clearTimeout(S._qt);S._qt=setTimeout(()=>{render_ekle();const i=document.querySelector(\'#app input[placeholder]\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">' +
+      '<div class="card"><input placeholder="🔎 580+ besin içinde ara (ör. simit, köfte, pilav)" value="' + esc(S.q || '') + '" oninput="S.q=this.value;clearTimeout(S._qt);S._qt=setTimeout(()=>{render_ekle();const i=document.querySelector(\'#app input[placeholder]\');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)" style="margin-bottom:10px">' +
         (fl.length ? fl.map(f => '<div class="fav ' + (S.sel === f.id ? 'on' : '') + '" onclick="S.sel=\'' + f.id + '\';S.mult=1;S.gram=null;render_ekle();window.scrollTo(0,0)"><div class="n"><b>' + esc(f.besin) + '</b>' + (f.own ? ' <span class="pill ok">benim</span>' : '') + '<div class="mut">' + esc(f.porsiyon) + ' · ' + fx(f.kcal) + ' kcal · P ' + fx(f.p, 1) + ' · K ' + fx(f.k, 1) + ' · Y ' + fx(f.y, 1) + '</div></div>' +
           (f.own ? '<button class="x" onclick="event.stopPropagation();delFav(\'' + f.id + '\')">✕</button>' : '') + '</div>').join('') +
           (more > 0 ? '<div class="mut" style="text-align:center;padding:10px 0 2px;font-size:13px">' + more + ' besin daha var · aramak için yukarıya yaz</div>' : '') : '<div class="empty">Bulunamadı. <a href="#" onclick="S.mode=\'man\';render_ekle();return false">Elle gir</a></div>') + '</div>'
